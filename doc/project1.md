@@ -13,7 +13,7 @@
 
 علیرضا طباطبائیان <tabanavid77@gmail.com> 
 
-علی بهجتی <example@example.com> 
+علی بهجتی <bahjatia@gmail.com> 
 
 مقدمات
 ----------
