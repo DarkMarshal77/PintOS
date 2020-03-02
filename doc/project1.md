@@ -36,21 +36,21 @@
 0x8048757
 
 ۳.
-_start
-mov 0x24(%esp),%eax
+`_start`
+`mov 0x24(%esp),%eax`
 
 ۴.
-sub $0x1c,%esp:
+`sub $0x1c,%esp`
 	گرفتن پشته مورد نیاز
-mov 0x24(%esp),%eax    &    mov %eax,0x4(%esp):
+`mov 0x24(%esp),%eax    +    mov %eax,0x4(%esp)`
 	قرار دادن argv در پشته برای تابع main
-mov 0x20(%esp),%eax    &    mov %eax,(%esp):
+`mov 0x20(%esp),%eax    +    mov %eax,(%esp)`
 	قرار دادن argc در پشته برای تابع main
-call 80480a0 <main>:
+`call 80480a0 <main>`
 	صدا زدن تابع main
-mov %eax,(%esp):
+`mov %eax,(%esp)`
 	قرار دادن مقدار بازگشتی main در پشته برای تابع exit
-call 804a2bc <exit>:
+`call 804a2bc <exit>`
 	صدا زدن تابع exit
 
 ۵.
