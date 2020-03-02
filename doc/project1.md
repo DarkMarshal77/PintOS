@@ -7,7 +7,7 @@
 > نام و آدرس پست الکترونیکی اعضای گروه را در این قسمت بنویسید.
 
 
-نام و نام خانوادگی <example@example.com>
+رضا یاربخش ryarbakhsh@gmail.com
 
 نام و نام خانوادگی <example@example.com> 
 
@@ -54,24 +54,57 @@
 	صدا زدن تابع exit
 
 ۵.
-به دلیل جدا نکردن فضای سیستم‌عامل از فضای کاربر، برنامه‌ای که در محیط کاربری در حال اجرا بود سعی کرد در پشته سیستم‌عامل بنویسد.
+به این دلیل که تابع _start انتظار داشت که آرگومان‌های ورودی توسط صداکننده در پشته قرار گرفته‌باشند ولی این اتفاق نیفتاده‌است و برنامه کاربر درحال دسترسی به حافظه سیستم‌عامل است.
 
 ۶.
-
+دو ریسه main و idle موجودند که ریسه main در حال اجرای تابع میباشد.
+```
+dumplist #0: 0xc000e000 {tid = 1, status = THREAD_RUNNING, name = "main", '\000' <repeats 11 times>, stack = 0xc000edec <incomplete sequence \357>, priority = 31, allelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}
+dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allelem = {prev = 0xc000e020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067} 
+```
 ۷.
-
+```
+#0  process_execute (file_name=file_name@entry=0xc0007d50 "do-nothing") at ../../userprog/process.c:32 
+process_wait (process_execute (task));
+#1  0xc0020268 in run_task (argv=0xc00357cc <argv+12>) at ../../threads/init.c:288
+a->function (argv);
+#2  0xc0020921 in run_actions (argv=0xc00357cc <argv+12>) at ../../threads/init.c:340
+run_actions (argv);
+#3  main () at ../../threads/init.c:133
+```
 ۸.
-
+```
+dumplist #0: 0xc000e000 {tid = 1, status = THREAD_BLOCKED, name = "main", '\000' <repeats 11 times>, stack = 0xc000eeac "\001", priority = 31, allelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0037314 <temporary+4>, next = 0xc003731c <temporary+12>}, pagedir = 0x0, magic = 3446325067}
+dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allelem = {prev = 0xc000e020, next = 0xc010a020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}
+dumplist #2: 0xc010a000 {tid = 3, status = THREAD_RUNNING, name = "do-nothing\000\000\000\000\000", stack = 0xc010afd4 "", priority = 31, allelem = {prev = 0xc0104020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}   
+```
 ۹.
+```
+thread.c:thread_create:
+/* Initialize thread. */
+init_thread (t, name, priority);
+tid = t->tid = allocate_tid ();
 
+/* Stack frame for kernel_thread(). */
+kf = alloc_frame (t, sizeof *kf);
+kf->eip = NULL;
+kf->function = function;
+kf->aux = aux;
+```
 ۱۰.
-
+```
+{edi = 0x0, esi = 0x0, ebp = 0x0, esp_dummy = 0x0, ebx = 0x0, edx = 0x0, ecx = 0x0, eax = 0x0, gs = 0x23, fs = 0x23, es = 0x23, ds = 0x23, vec_no = 0x0, error_code = 0x0, frame_pointer = 0x0, eip = 0x8048754, cs = 0x1b, eflags = 0x202, esp = 0xc0000000, ss = 0x23} 
+```
 ۱۱.
+زیرا با پریدن به intr_exit ما در واقع بازگشت از یک وقفه را شبیه سازی کردیم که با اتمام آن پردازه ما دوباره به حالت userspace باز میگردد.
 
 ۱۲.
+تفاوتی ندارد.
 
 ۱۳.
-
+```
+#0  _start (argc=<unavailable>, argv=<unavailable>) at ../../lib/user/entry.c:9  
+```
 ۱۴.
 
 ۱۵.
