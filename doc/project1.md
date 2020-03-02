@@ -105,17 +105,43 @@ kf->aux = aux;
 ```
 #0  _start (argc=<unavailable>, argv=<unavailable>) at ../../lib/user/entry.c:9  
 ```
-۱۴.
+۱۴ و ۱۵.
 
-۱۵.
+Because stack pointer is pointing to topmost part we have some values in the stack for start function (./lib/user/entry.c) which will be copied upon calling main function. (12 bytes: 2x4 B for arguments and 1x4 B for return address) In the doc also states that:
+
+> The x86 ABI requires that %esp be aligned to a 16-byte boundary at the time the call instruction is executed (e.g., at the point where all arguments are pushed to the stack), so make sure to leave enough empty space on the stack so that this is achieved.
+
+It is same as do-stack-align test because before call it should be divisible by 16 and after call we decrease esp by 4 (to push return address) so esp % 16 should be 12.
+
+Because of that in stack setup function we decrease value of esp by 20 to have this alignment correctly. We should decrease by 20 because calling main in start decreases esp by 28 and 16 should divide x + 28 and x >= 12. So x equals to 20. 
 
 ۱۶.
 
+`0xbfffffa8:     0x00000001      0x000000a2`
+
 ۱۷.
+
+The first value (argv[0]) is systemcall id (as in syscall-nr.h) and second value is 162 which is the return value. These are the same as 16 which were two arguments put for the systemcall interrupt.
 
 ۱۸.
 
+sema_down is in process wait (and it was init in process execute). It's basically increasing value of semaphore to wake up threads (if any) waiting to do sema_down. (they're blocked til semaphore value become positive)
+
 ۱۹.
+
+This is the original thread that created new thread for the program. (Recall problem 8). Only idle is available since the new thread ended before. name "main" and address 0xc000e000.
+```
+(gdb) info threads
+  Id   Target Id         Frame
+* 1    Thread <main>     process_wait (child_tid=3) at ../../userprog/process.c:96
+(gdb) dumplist &all_list thread allelem
+pintos-debug: dumplist #0: 0xc000e000 {tid = 1, status = THREAD_RUNNING, name = "main", '\000' <repeats 11 times>, stack = 0xc000eeac "\001", priority = 31, a
+llelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic =
+3446325067}
+pintos-debug: dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allele
+m = {prev = 0xc000e020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 344
+6325067}
+```
 
 
 پاس‌دادن آرگومان
