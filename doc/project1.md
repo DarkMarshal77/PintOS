@@ -7,9 +7,9 @@
 > نام و آدرس پست الکترونیکی اعضای گروه را در این قسمت بنویسید.
 
 
-رضا یاربخش ryarbakhsh@gmail.com
+رضا یاربخش <ryarbakhsh@gmail.com>
 
-نام و نام خانوادگی <example@example.com> 
+علیرضا طباطبائیان <tabanavid77@gmail.com> 
 
 نام و نام خانوادگی <example@example.com> 
 
