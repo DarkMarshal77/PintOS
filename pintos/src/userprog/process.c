@@ -23,6 +23,15 @@ static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+#define MAX_ARGS 20
+#define WORD_SIZE sizeof(void *)
+
+
+struct Arguments {
+  int argc;
+  char *argv[MAX_ARGS];
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -200,7 +209,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, struct Arguments arguments);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -213,6 +222,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
+  struct Arguments arguments;
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -306,8 +316,21 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
+  /* Parse args. */
+  char *saveptr;
+  char *delim = " ";
+  char fn_copy[16];
+  memcpy(fn_copy, file_name, 16);
+  char *cur = strtok_r(fn_copy, delim, &saveptr);
+  arguments.argc = 0;
+  while (cur != NULL) {
+    arguments.argv[arguments.argc] = cur;
+    arguments.argc++;
+    cur = strtok_r(NULL, delim, &saveptr);
+  }
+
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, arguments))
     goto done;
 
   /* Start address. */
@@ -432,10 +455,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp)
+setup_stack (void **esp, struct Arguments arguments)
 {
   uint8_t *kpage;
   bool success = false;
+  int zero =  0;
+  char *top = (char *) PHYS_BASE;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL)
@@ -447,8 +472,50 @@ setup_stack (void **esp)
       palloc_free_page (kpage);
   }
 
-  // stack allocation for future argument passing
-  *esp -= (16 + 4);
+  /* stack allocation for arguments passing */
+
+  /* put arguments in stack in reversed order and save a pointer to them */
+  void *argument_ptr[arguments.argc];
+  for (int i = arguments.argc - 1; i >= 0; i--) {
+    int arg_len = strlen(arguments.argv[i]) + 1;
+    //printf("%s\n", arguments.argv[i]);
+    char *dest = top - arg_len;
+    memcpy((void *) dest, (void *) arguments.argv[i], arg_len);
+    argument_ptr[i] = (void *) dest;
+    top = dest;
+  }
+
+  /* word alignment */
+  int word_align = (uint32_t) top % WORD_SIZE;
+  for (int i = 0; i < word_align; i++) {
+    memcpy(top - 1, &zero, 1);
+    top--;
+  }
+
+  /* push a null word */
+  memcpy(top - WORD_SIZE, &zero, WORD_SIZE);
+  top -= WORD_SIZE;
+  
+  /* push address of arguments */
+  for (int i = arguments.argc - 1; i >= 0; i--) {
+    memcpy(top - WORD_SIZE, &argument_ptr[i], WORD_SIZE);
+    top -= WORD_SIZE;
+  }
+  
+  /* Push a pointer to the first address */
+  memcpy(top - WORD_SIZE, &top, WORD_SIZE);
+  top -= WORD_SIZE;
+
+  /* Push argc */
+  memcpy(top - WORD_SIZE, &(arguments.argc), WORD_SIZE);
+  top -= WORD_SIZE;
+
+  /* Push a null return address */
+  memcpy(top - WORD_SIZE, &zero, WORD_SIZE);
+  top -= WORD_SIZE;
+
+
+  *esp = (void *) top;
 
   return success;
 }
