@@ -19,9 +19,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-static struct semaphore temporary;
-static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
 #define MAX_ARGS 20
 #define WORD_SIZE sizeof(void *)
@@ -32,6 +29,13 @@ struct Arguments {
   char *argv[MAX_ARGS];
 };
 
+static struct semaphore temporary;
+static thread_func start_process NO_RETURN;
+static bool load (const char *cmdline, void (**eip) (void), void **esp, struct Arguments arguments);
+
+
+
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -41,6 +45,8 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  char* tname;
+  char *saveptr;
 
   sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
@@ -49,9 +55,15 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  tname = strtok_r(fn_copy, " ", &saveptr);
 
+  fn_copy = palloc_get_page (0);
+  if (fn_copy == NULL)
+    return TID_ERROR;
+  strlcpy (fn_copy, file_name, PGSIZE);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (tname, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   return tid;
@@ -62,7 +74,17 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = file_name_;
+  struct Arguments arguments;
+  char *saveptr;
+  char *fn_copy = palloc_get_page(0);
+  strlcpy (fn_copy, file_name_, PGSIZE);
+  char *cur = strtok_r(fn_copy, " ", &saveptr);
+  arguments.argc = 0;
+  while (cur != NULL) {
+    arguments.argv[arguments.argc] = cur;
+    arguments.argc++;
+    cur = strtok_r(NULL, " ", &saveptr);
+  }
   struct intr_frame if_;
   bool success;
 
@@ -71,10 +93,10 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (arguments.argv[0], &if_.eip, &if_.esp, arguments);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (file_name_);
   if (!success)
     thread_exit ();
 
@@ -220,9 +242,8 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp)
+load (const char *file_name, void (**eip) (void), void **esp, struct Arguments arguments)
 {
-  struct Arguments arguments;
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -315,19 +336,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
-  /* Parse args. */
-  char *saveptr;
-  char *delim = " ";
-  char fn_copy[16];
-  memcpy(fn_copy, file_name, 16);
-  char *cur = strtok_r(fn_copy, delim, &saveptr);
-  arguments.argc = 0;
-  while (cur != NULL) {
-    arguments.argv[arguments.argc] = cur;
-    arguments.argc++;
-    cur = strtok_r(NULL, delim, &saveptr);
-  }
 
   /* Set up stack. */
   if (!setup_stack (esp, arguments))
