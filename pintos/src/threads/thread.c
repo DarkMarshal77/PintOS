@@ -375,6 +375,12 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
+
+struct file *get_file(int fd)
+{
+  return NULL;
+}
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 

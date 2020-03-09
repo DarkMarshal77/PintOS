@@ -50,8 +50,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 		}
 		else
 		{
-			// file write
-			f->eax = size;
+			struct file *file = get_file(fd);
+			f->eax = file_write (file, buf, size);
 		}
 	}
 	else if (args[0] == SYS_READ)
@@ -63,8 +63,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 		f->eax = -1;
 		if (fd > 1)
 		{
-			// file read
-			f->eax = file_read (&fd, buf, size);
+			struct file *file = get_file(fd);
+			f->eax = file_read (file, buf, size);
 		}
 	}
 }
