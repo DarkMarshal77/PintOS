@@ -49,6 +49,22 @@ syscall_handler (struct intr_frame *f UNUSED)
 			f->eax = size;
 		}
 		else
-			printf("Not Implemented yet.\n");
+		{
+			// file write
+			f->eax = size;
+		}
+	}
+	else if (args[0] == SYS_READ)
+	{
+		int fd = args[1];
+		const char *buf = args[2];
+		size_t size = args[3];
+
+		f->eax = -1;
+		if (fd > 1)
+		{
+			// file read
+			f->eax = size;
+		}
 	}
 }
