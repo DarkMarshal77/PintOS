@@ -57,14 +57,14 @@ syscall_handler (struct intr_frame *f UNUSED)
 	else if (args[0] == SYS_READ)
 	{
 		int fd = args[1];
-		const char *buf = args[2];
-		size_t size = args[3];
+		void *buf = args[2];
+		off_t size = args[3];
 
 		f->eax = -1;
 		if (fd > 1)
 		{
 			// file read
-			f->eax = size;
+			f->eax = file_read (&fd, buf, size);
 		}
 	}
 }
