@@ -35,9 +35,16 @@ syscall_handler (struct intr_frame *f UNUSED)
 	else if (args[0] == SYS_WRITE)
 	{
 		int fd = args[1];
-		void *buf = args[2];
-		unsigned size = args[3];
+		const char *buf = args[2];
+		size_t size = args[3];
 
-		f->eax = fwrite(buf, size, fd);
+		f->eax = -1; 
+		if (fd == 1)
+		{
+			putbuf(buf, size);
+			f->eax = size;
+		}
+		else
+			printf("Not Implemented yet.\n");
 	}
 }
