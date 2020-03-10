@@ -20,7 +20,7 @@
 #include "threads/vaddr.h"
 
 
-#define MAX_ARGS 20
+#define MAX_ARGS 30
 #define WORD_SIZE sizeof(void *)
 
 
@@ -486,7 +486,6 @@ setup_stack (void **esp, struct Arguments arguments)
   void *argument_ptr[arguments.argc];
   for (int i = arguments.argc - 1; i >= 0; i--) {
     int arg_len = strlen(arguments.argv[i]) + 1;
-    //printf("%s\n", arguments.argv[i]);
     char *dest = top - arg_len;
     memcpy((void *) dest, (void *) arguments.argv[i], arg_len);
     argument_ptr[i] = (void *) dest;
