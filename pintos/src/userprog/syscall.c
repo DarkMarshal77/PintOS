@@ -67,4 +67,19 @@ syscall_handler (struct intr_frame *f UNUSED)
 			f->eax = file_read (file, buf, size);
 		}
 	}
+	else if (args[0] == SYS_OPEN)
+	{
+		char *file_name = args[1];
+		// TODO: complete this handler
+	}
+	else if (args[0] == SYS_CLOSE)
+	{
+		int fd = args[1];
+
+		if (fd > 1)
+		{
+			struct file *file = get_file(fd);
+			file_close (file);
+		}
+	}
 }

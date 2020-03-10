@@ -376,9 +376,22 @@ thread_get_recent_cpu (void)
   return 0;
 }
 
+// get file from fd
 struct file *get_file(int fd)
 {
   return NULL;
+}
+
+// creat file map and add to thread's file list
+void add_file(struct file *file)
+{
+
+}
+
+// remove file map thread's file list
+void remove_file(struct file *file)
+{
+
 }
 
 
