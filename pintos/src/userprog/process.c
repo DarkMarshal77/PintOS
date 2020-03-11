@@ -24,14 +24,15 @@
 #define WORD_SIZE sizeof(void *)
 
 
-struct Arguments {
-  int argc;
+struct Arguments
+{
+  uint32_t argc;
   char *argv[MAX_ARGS];
 };
 
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp, struct Arguments arguments);
+static bool load (struct Arguments arguments, void (**eip) (void), void **esp);
 
 
 
@@ -56,12 +57,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
   
-  tname = strtok_r(fn_copy, " ", &saveptr);
+  tname = strtok_r(file_name, " ", &saveptr);
 
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
-    return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (tname, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -74,26 +71,27 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  struct intr_frame if_;
+  bool success;
+
+  // fill arguments
   struct Arguments arguments;
   char *saveptr;
-  char *fn_copy = palloc_get_page(0);
-  strlcpy (fn_copy, file_name_, PGSIZE);
-  char *cur = strtok_r(fn_copy, " ", &saveptr);
+  char *cur = strtok_r(file_name_, " ", &saveptr);
   arguments.argc = 0;
-  while (cur != NULL) {
+  while (cur != NULL)
+  {
     arguments.argv[arguments.argc] = cur;
     arguments.argc++;
     cur = strtok_r(NULL, " ", &saveptr);
   }
-  struct intr_frame if_;
-  bool success;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (arguments.argv[0], &if_.eip, &if_.esp, arguments);
+  success = load (arguments, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name_);
@@ -137,18 +135,18 @@ process_exit (void)
      to the kernel-only page directory. */
   pd = cur->pagedir;
   if (pd != NULL)
-    {
-      /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
-    }
+  {
+    /* Correct ordering here is crucial.  We must set
+       cur->pagedir to NULL before switching page directories,
+       so that a timer interrupt can't switch back to the
+       process page directory.  We must activate the base page
+       directory before destroying the process's page
+       directory, or our active page directory will be one
+       that's been freed (and cleared). */
+    cur->pagedir = NULL;
+    pagedir_activate (NULL);
+    pagedir_destroy (pd);
+  }
   sema_up (&temporary);
 }
 
@@ -184,37 +182,37 @@ typedef uint16_t Elf32_Half;
 /* Executable header.  See [ELF1] 1-4 to 1-8.
    This appears at the very beginning of an ELF binary. */
 struct Elf32_Ehdr
-  {
-    unsigned char e_ident[16];
-    Elf32_Half    e_type;
-    Elf32_Half    e_machine;
-    Elf32_Word    e_version;
-    Elf32_Addr    e_entry;
-    Elf32_Off     e_phoff;
-    Elf32_Off     e_shoff;
-    Elf32_Word    e_flags;
-    Elf32_Half    e_ehsize;
-    Elf32_Half    e_phentsize;
-    Elf32_Half    e_phnum;
-    Elf32_Half    e_shentsize;
-    Elf32_Half    e_shnum;
-    Elf32_Half    e_shstrndx;
-  };
+{
+  unsigned char e_ident[16];
+  Elf32_Half    e_type;
+  Elf32_Half    e_machine;
+  Elf32_Word    e_version;
+  Elf32_Addr    e_entry;
+  Elf32_Off     e_phoff;
+  Elf32_Off     e_shoff;
+  Elf32_Word    e_flags;
+  Elf32_Half    e_ehsize;
+  Elf32_Half    e_phentsize;
+  Elf32_Half    e_phnum;
+  Elf32_Half    e_shentsize;
+  Elf32_Half    e_shnum;
+  Elf32_Half    e_shstrndx;
+};
 
 /* Program header.  See [ELF1] 2-2 to 2-4.
    There are e_phnum of these, starting at file offset e_phoff
    (see [ELF1] 1-6). */
 struct Elf32_Phdr
-  {
-    Elf32_Word p_type;
-    Elf32_Off  p_offset;
-    Elf32_Addr p_vaddr;
-    Elf32_Addr p_paddr;
-    Elf32_Word p_filesz;
-    Elf32_Word p_memsz;
-    Elf32_Word p_flags;
-    Elf32_Word p_align;
-  };
+{
+  Elf32_Word p_type;
+  Elf32_Off  p_offset;
+  Elf32_Addr p_vaddr;
+  Elf32_Addr p_paddr;
+  Elf32_Word p_filesz;
+  Elf32_Word p_memsz;
+  Elf32_Word p_flags;
+  Elf32_Word p_align;
+};
 
 /* Values for p_type.  See [ELF1] 2-3. */
 #define PT_NULL    0            /* Ignore. */
@@ -242,8 +240,9 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp, struct Arguments arguments)
+load (struct Arguments arguments, void (**eip) (void), void **esp)
 {
+  char *file_name = arguments.argv[0];
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -260,10 +259,10 @@ load (const char *file_name, void (**eip) (void), void **esp, struct Arguments a
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
-    {
-      printf ("load: %s: open failed\n", file_name);
-      goto done;
-    }
+  {
+    printf ("load: %s: open failed\n", file_name);
+    goto done;
+  }
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -273,69 +272,69 @@ load (const char *file_name, void (**eip) (void), void **esp, struct Arguments a
       || ehdr.e_version != 1
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
-    {
-      printf ("load: %s: error loading executable\n", file_name);
-      goto done;
-    }
+  {
+    printf ("load: %s: error loading executable\n", file_name);
+    goto done;
+  }
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++)
+  {
+    struct Elf32_Phdr phdr;
+
+    if (file_ofs < 0 || file_ofs > file_length (file))
+      goto done;
+    file_seek (file, file_ofs);
+
+    if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+      goto done;
+    file_ofs += sizeof phdr;
+    switch (phdr.p_type)
     {
-      struct Elf32_Phdr phdr;
-
-      if (file_ofs < 0 || file_ofs > file_length (file))
+      case PT_NULL:
+      case PT_NOTE:
+      case PT_PHDR:
+      case PT_STACK:
+      default:
+        /* Ignore this segment. */
+        break;
+      case PT_DYNAMIC:
+      case PT_INTERP:
+      case PT_SHLIB:
         goto done;
-      file_seek (file, file_ofs);
-
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
-        goto done;
-      file_ofs += sizeof phdr;
-      switch (phdr.p_type)
+      case PT_LOAD:
+        if (validate_segment (&phdr, file))
         {
-        case PT_NULL:
-        case PT_NOTE:
-        case PT_PHDR:
-        case PT_STACK:
-        default:
-          /* Ignore this segment. */
-          break;
-        case PT_DYNAMIC:
-        case PT_INTERP:
-        case PT_SHLIB:
-          goto done;
-        case PT_LOAD:
-          if (validate_segment (&phdr, file))
+          bool writable = (phdr.p_flags & PF_W) != 0;
+          uint32_t file_page = phdr.p_offset & ~PGMASK;
+          uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
+          uint32_t page_offset = phdr.p_vaddr & PGMASK;
+          uint32_t read_bytes, zero_bytes;
+          if (phdr.p_filesz > 0)
             {
-              bool writable = (phdr.p_flags & PF_W) != 0;
-              uint32_t file_page = phdr.p_offset & ~PGMASK;
-              uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
-              uint32_t page_offset = phdr.p_vaddr & PGMASK;
-              uint32_t read_bytes, zero_bytes;
-              if (phdr.p_filesz > 0)
-                {
-                  /* Normal segment.
-                     Read initial part from disk and zero the rest. */
-                  read_bytes = page_offset + phdr.p_filesz;
-                  zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
-                                - read_bytes);
-                }
-              else
-                {
-                  /* Entirely zero.
-                     Don't read anything from disk. */
-                  read_bytes = 0;
-                  zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
-                }
-              if (!load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
-                goto done;
+              /* Normal segment.
+                 Read initial part from disk and zero the rest. */
+              read_bytes = page_offset + phdr.p_filesz;
+              zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
+                            - read_bytes);
             }
           else
+            {
+              /* Entirely zero.
+                 Don't read anything from disk. */
+              read_bytes = 0;
+              zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
+            }
+          if (!load_segment (file, file_page, (void *) mem_page,
+                             read_bytes, zero_bytes, writable))
             goto done;
-          break;
         }
+        else
+          goto done;
+        break;
     }
+  }
 
   /* Set up stack. */
   if (!setup_stack (esp, arguments))
@@ -465,9 +464,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp, struct Arguments arguments)
 {
+  int i;
   uint8_t *kpage;
   bool success = false;
-  int zero =  0;
   char *top = (char *) PHYS_BASE;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
@@ -480,11 +479,10 @@ setup_stack (void **esp, struct Arguments arguments)
       palloc_free_page (kpage);
   }
 
-  /* stack allocation for arguments passing */
-
   /* put arguments in stack in reversed order and save a pointer to them */
   void *argument_ptr[arguments.argc];
-  for (int i = arguments.argc - 1; i >= 0; i--) {
+  for (i = arguments.argc - 1; i >= 0; i--)
+  {
     int arg_len = strlen(arguments.argv[i]) + 1;
     char *dest = top - arg_len;
     memcpy((void *) dest, (void *) arguments.argv[i], arg_len);
@@ -493,33 +491,33 @@ setup_stack (void **esp, struct Arguments arguments)
   }
 
   /* word alignment */
-  int word_align = (uint32_t) top % WORD_SIZE;
-  for (int i = 0; i < word_align; i++) {
-    memcpy(top - 1, &zero, 1);
-    top--;
-  }
+  uint32_t word_align = (uint32_t) top % WORD_SIZE;
+  top -= word_align;
+  memset(top, 0, word_align);
 
   /* push a null word */
-  memcpy(top - WORD_SIZE, &zero, WORD_SIZE);
   top -= WORD_SIZE;
+  memset(top, 0, WORD_SIZE);
   
   /* push address of arguments */
-  for (int i = arguments.argc - 1; i >= 0; i--) {
-    memcpy(top - WORD_SIZE, &argument_ptr[i], WORD_SIZE);
+  for (i = arguments.argc - 1; i >= 0; i--)
+  {
     top -= WORD_SIZE;
+    memcpy(top, &argument_ptr[i], WORD_SIZE);
   }
   
   /* Push a pointer to the first address */
-  memcpy(top - WORD_SIZE, &top, WORD_SIZE);
+  void *argv_adr = (void *)top;
   top -= WORD_SIZE;
+  memcpy(top, &argv_adr, WORD_SIZE);
 
   /* Push argc */
-  memcpy(top - WORD_SIZE, &(arguments.argc), WORD_SIZE);
   top -= WORD_SIZE;
+  memcpy(top, &(arguments.argc), WORD_SIZE);
 
   /* Push a null return address */
-  memcpy(top - WORD_SIZE, &zero, WORD_SIZE);
   top -= WORD_SIZE;
+  memset(top, 0, WORD_SIZE);
 
 
   *esp = (void *) top;
