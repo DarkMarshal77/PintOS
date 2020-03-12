@@ -70,7 +70,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 	else if (args[0] == SYS_OPEN)
 	{
 		char *file_name = args[1];
-		// TODO: complete this handler
+		struct file *file = filesys_open(file_name);
+
+		if (file != NULL)
+			f->eax = add_file(file);
+		else
+			f->eax = -1;
 	}
 	else if (args[0] == SYS_CLOSE)
 	{
@@ -80,6 +85,19 @@ syscall_handler (struct intr_frame *f UNUSED)
 		{
 			struct file *file = get_file(fd);
 			file_close (file);
+			remove_file(file);
 		}
+	}
+	else if (args[0] == SYS_CREATE)
+	{
+		char *file_name = args[1];
+		off_t initial_size = args[2];
+
+		f->eax = filesys_create (file_name, initial_size);
+	}
+	else if (args[0] == SYS_REMOVE)
+	{
+		char *file_name = args[1];
+		f->eax = filesys_remove (file_name);
 	}
 }
