@@ -8,6 +8,7 @@
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -291,6 +292,7 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -379,19 +381,65 @@ thread_get_recent_cpu (void)
 // get file from fd
 struct file *get_file(int fd)
 {
-  return NULL;
+  struct thread* current_th = thread_current();
+  struct list files = current_th->files;
+  struct list_elem* current_node;
+  struct file* ret = NULL;
+
+  for (current_node = list_begin(&files); current_node != list_end(&files); current_node = list_next(current_node))
+  {
+    struct filemap* f_map = list_entry(current_node, struct filemap, elem);
+    if (f_map->fd == fd)
+    {
+      ret = f_map->file_instance;
+      break;
+    }
+  }
+  return ret;
 }
 
-// creat file map and add to thread's file list
+// create file map and add to thread's file list
 void add_file(struct file *file)
 {
-
+  struct filemap* n_filemap = (struct filemap*)(malloc(sizeof(struct filemap)));
+  n_filemap->file_instance = file;
+  struct list files = thread_current()->files;
+  struct list_elem* current = list_begin(&files);
+  int fd = 2;
+  bool is_added = false;
+  for (current = list_begin(&files); current != list_end(&files); current = list_next(current))
+  {
+    struct filemap* cur_fm = list_entry(current, struct filemap, elem);
+    if (cur_fm->fd > fd)
+    {
+      n_filemap->fd = fd;
+      list_insert(current, &n_filemap->elem);
+      is_added = true;
+      break;
+    }
+    else
+      fd ++;
+  }
+  if (!is_added)
+  {
+    n_filemap->fd = fd;
+    list_insert(current, &n_filemap->elem);
+  }
 }
 
 // remove file map thread's file list
 void remove_file(struct file *file)
 {
-
+  struct list files = thread_current()->files;
+  struct list_elem* current;
+  for (current = list_begin(&files); current != list_end(&files); current = list_next(current))
+  {
+    struct filemap* cur_fm = list_entry(current, struct filemap, elem);
+    if (cur_fm->file_instance == file)
+    {
+      list_remove(current);
+    }
+  }
 }
 
 
@@ -482,6 +530,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init(&t->files);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
