@@ -73,7 +73,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		struct file *file = filesys_open(file_name);
 
 		if (file != NULL)
-			f->eax = add_file(file);
+			f->eax = add_file(file, file_name);
 		else
 			f->eax = -1;
 	}
@@ -99,5 +99,24 @@ syscall_handler (struct intr_frame *f UNUSED)
 	{
 		char *file_name = args[1];
 		f->eax = filesys_remove (file_name);
+	}
+	else if (args[0] == SYS_FILESIZE)
+	{
+		int fd = args[1];
+		struct file *file = get_file(fd);
+		f->eax = file_length (file);
+	}
+	else if (args[0] == SYS_SEEK)
+	{
+		int fd = args[1];
+		unsigned position = args[2];
+		struct file *file = get_file(fd);
+		file_seek (file, position);
+	}
+	else if (args[0] == SYS_TELL)
+	{
+		int fd = args[1];
+		struct file *file = get_file(fd);
+		f->eax = file_tell (file);
 	}
 }

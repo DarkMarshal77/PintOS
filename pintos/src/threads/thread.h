@@ -107,11 +107,12 @@ struct list files;
   };
 
 
-struct filemap{
-   int fd;
-   struct file* file_instance;
-   const char* file_name;
-   struct list_elem elem;
+struct filemap
+{
+  int fd;
+  struct file* file_instance;
+  const char* file_name;
+  struct list_elem elem;
 };
 
 
@@ -152,7 +153,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct file *get_file(int fd);
-void add_file(struct file *file);
+int add_file(struct file *file, char *file_name);
 void remove_file(struct file *file);
 
 #endif /* threads/thread.h */

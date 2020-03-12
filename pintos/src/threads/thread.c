@@ -399,7 +399,7 @@ struct file *get_file(int fd)
 }
 
 // create file map and add to thread's file list
-void add_file(struct file *file)
+int add_file(struct file *file, char *file_name)
 {
   struct filemap* n_filemap = (struct filemap*)(malloc(sizeof(struct filemap)));
   n_filemap->file_instance = file;
@@ -422,9 +422,12 @@ void add_file(struct file *file)
   }
   if (!is_added)
   {
+    strlcpy(n_filemap->file_name, file_name, strlen(file_name));
     n_filemap->fd = fd;
     list_insert(current, &n_filemap->elem);
   }
+
+  return fd;
 }
 
 // remove file map thread's file list
