@@ -9,8 +9,8 @@ static void syscall_handler (struct intr_frame *);
 
 static uint32_t get_user_byte (const uint8_t *uaddr);
 static uint32_t get_user_byte_safe (const uint8_t *uaddr);
-static bool get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size);
-static bool check_user_safe (const uint8_t *usrc, size_t size);
+static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size);
+static void check_user_safe (const uint8_t *usrc, size_t size);
 static bool put_user_byte (uint8_t *udst, uint8_t byte); 
 
 void sys_exit(int status)
@@ -34,8 +34,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	uint32_t* args = ((uint32_t*) f->esp);
 
-	if (!check_user_safe(args, 4))
-		sys_exit(-1);
+	check_user_safe(args, 4);
 
 	/*
 	 * The following print statement, if uncommented, will print out the syscall
@@ -48,8 +47,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	if (args[0] == SYS_EXIT)
 	{
-		if (!check_user_safe(&args[1], 4))
-			sys_exit(-1);
+		check_user_safe(&args[1], 4);
 		
 		f->eax = args[1];
 		printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
@@ -57,22 +55,19 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_PRACTICE)
 	{
-		if (!check_user_safe(&args[1], 4))
-			sys_exit(-1);
+		check_user_safe(&args[1], 4);
 
 		f->eax = args[1] + 1;
 	}
 	else if (args[0] == SYS_WRITE)
 	{
-		if (!check_user_safe(&args[1], 4 * 3))
-			sys_exit(-1);
+		check_user_safe(&args[1], 4 * 3);
 		
 		int fd = args[1];
 		const char *buf = args[2];
 		size_t size = args[3];
 
-		if (!check_user_safe(buf, size))
-			sys_exit(-1);
+		check_user_safe(buf, size);
 
 		f->eax = -1; 
 		if (fd == 1)
@@ -101,32 +96,29 @@ static uint32_t get_user_byte (const uint8_t *uaddr)
 static uint32_t get_user_byte_safe (const uint8_t *uaddr)
 {
 	if (!is_user_vaddr(uaddr))
-		return 0xffffffff;
+		sys_exit(-1);
 
-	return get_user_byte(uaddr);
+	uint32_t result = get_user_byte(uaddr);
+	if (result == 0xffffffff)
+		sys_exit(-1);
+
+	return result;
 }
 
 // Reads from user memory with size and copies to dst. It exits in case it's violating memory access
-static bool get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size)
+static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size)
 {
+	check_user_safe(udst, size);
+
 	for (size_t i = 0; i < size; i++)
-	{
-		uint32_t status = get_user_byte_safe(usrc + size);
-		if (status == 0xffffffff)
-			return false; 
-		* (udst + i) = status & 0xff;
-	}
-	return true;
+		*(udst + i) = get_user_byte_safe(usrc + i) & 0xff;
 }
 
 // Checks user memory with size to check violations. It exits in case it's violating memory access
-static bool check_user_safe (const uint8_t *usrc, size_t size)
+static void check_user_safe (const uint8_t *usrc, size_t size)
 {
-	for(size_t i = 0; i < size; i++) 
-		if (get_user_byte_safe(usrc + size) == 0xffffffff)
-			return false;
-
-	return true;
+	for(size_t i = 0; i < size; i++)
+		get_user_byte_safe(usrc + i);
 }
 
 /* 
