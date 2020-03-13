@@ -11,6 +11,7 @@ static uint32_t get_user_byte (const uint8_t *uaddr);
 static uint32_t get_user_byte_safe (const uint8_t *uaddr);
 static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size);
 static void check_user_safe (const uint8_t *usrc, size_t size);
+static void check_user_str_safe(const char *uaddr);
 static bool put_user_byte (uint8_t *udst, uint8_t byte); 
 
 void sys_exit(int status)
@@ -83,9 +84,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_READ)
 	{
+		check_user_safe(&args[1], 4*3);
 		int fd = args[1];
 		void *buf = args[2];
 		off_t size = args[3];
+
+    check_user_safe(buf, size);
 
 		f->eax = -1;
 		if (fd > 1)
@@ -96,7 +100,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_OPEN)
 	{
+		check_user_safe(&args[1], 4);
 		char *file_name = args[1];
+
+    check_user_str_safe(file_name);
+
 		struct file *file = filesys_open(file_name);
 
 		if (file != NULL)
@@ -106,6 +114,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_CLOSE)
 	{
+		check_user_safe(&args[1], 4);
 		int fd = args[1];
 
 		if (fd > 1)
@@ -117,24 +126,33 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_CREATE)
 	{
+		check_user_safe(&args[1], 4*2);
 		char *file_name = args[1];
 		off_t initial_size = args[2];
+
+    check_user_str_safe(file_name);
 
 		f->eax = filesys_create (file_name, initial_size);
 	}
 	else if (args[0] == SYS_REMOVE)
 	{
+		check_user_safe(&args[1], 4);
 		char *file_name = args[1];
+
+    check_user_str_safe(file_name);
+
 		f->eax = filesys_remove (file_name);
 	}
 	else if (args[0] == SYS_FILESIZE)
 	{
+		check_user_safe(&args[1], 4);
 		int fd = args[1];
 		struct file *file = get_file(fd);
 		f->eax = file_length (file);
 	}
 	else if (args[0] == SYS_SEEK)
 	{
+		check_user_safe(&args[1], 4*2);
 		int fd = args[1];
 		unsigned position = args[2];
 		struct file *file = get_file(fd);
@@ -142,6 +160,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_TELL)
 	{
+		check_user_safe(&args[1], 4);
 		int fd = args[1];
 		struct file *file = get_file(fd);
 		f->eax = file_tell (file);
@@ -188,6 +207,15 @@ static void check_user_safe (const uint8_t *usrc, size_t size)
 	for(size_t i = 0; i < size; i++)
 		get_user_byte_safe(usrc + i);
 }
+
+
+static void check_user_str_safe(const char *uaddr)
+{
+  char *ptr = uaddr;
+  while( (check_user_safe(ptr, 1), *ptr != '\0') )
+    ptr++;
+}
+
 
 /* 
  * Writes BYTE to user address UDST.
