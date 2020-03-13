@@ -7,16 +7,17 @@
 
 static void syscall_handler (struct intr_frame *);
 
-static int get_user_byte (const uint8_t *uaddr);
-static int get_user_byte_safe (const uint8_t *uaddr);
-static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size);
-static void check_user_safe (const uint8_t *usrc, size_t size);
+static uint32_t get_user_byte (const uint8_t *uaddr);
+static uint32_t get_user_byte_safe (const uint8_t *uaddr);
+static bool get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size);
+static bool check_user_safe (const uint8_t *usrc, size_t size);
 static bool put_user_byte (uint8_t *udst, uint8_t byte); 
 
-void sys_exit(int status) {
-  printf ("%s: exit(%d)\n", &thread_current ()->name, status);
-  thread_exit ();
-  NOT_REACHED();
+void sys_exit(int status)
+{
+	printf ("%s: exit(%d)\n", &thread_current ()->name, status);
+	thread_exit ();
+	NOT_REACHED();
 }
 
 
@@ -29,11 +30,12 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-  f->eax = -1; 
+	f->eax = -1;
 
 	uint32_t* args = ((uint32_t*) f->esp);
 
-  check_user_safe(args, 4);
+	if (check_user_safe(args, 4) == 0xffffffff)
+		sys_exit(-1);
 
 	/*
 	 * The following print statement, if uncommented, will print out the syscall
@@ -46,25 +48,31 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	if (args[0] == SYS_EXIT)
 	{
-    check_user_safe(args + 1, 4);
+		if (!check_user_safe(&args[1], 4))
+			sys_exit(-1);
+		
 		f->eax = args[1];
 		printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
 		thread_exit ();
 	}
 	else if (args[0] == SYS_PRACTICE)
 	{
-    check_user_safe(args + 1, 4);
+		if (!check_user_safe(&args[1], 4))
+			sys_exit(-1);
+
 		f->eax = args[1] + 1;
 	}
 	else if (args[0] == SYS_WRITE)
 	{
-    check_user_safe(args + 1, 4 * 3);
+		if (!check_user_safe(&args[1], 4 * 3))
+			sys_exit(-1);
+		
 		int fd = args[1];
-
+		const char *buf = args[2];
 		size_t size = args[3];
 
-		const char *buf = args[2];
-    check_user_safe(buf, size);
+		if (!check_user_safe(buf, size))
+			sys_exit(-1);
 
 		f->eax = -1; 
 		if (fd == 1)
@@ -77,49 +85,59 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 }
 
-/* Reads a byte at user virtual address UADDR.
-   UADDR must be below PHYS_BASE.
-   Returns the byte value if successful, -1 if a segfault occurred. */
-static int get_user_byte (const uint8_t *uaddr) {
-  int result;
-  asm ("movl $1f, %0; movzbl %1, %0; 1:"
-      : "=&a" (result) : "m" (*uaddr));
-  return result;
+/* 
+ * Reads a byte at user virtual address UADDR.
+ * UADDR must be below PHYS_BASE.
+ * Returns the byte value if successful, -1 if a segfault occurred.
+ */
+static uint32_t get_user_byte (const uint8_t *uaddr)
+{
+	uint32_t result;
+	asm volatile ("movl $1f, %0; movzbl %1, %0; 1:" : "=&a" (result) : "m" (*uaddr));
+	return result;
 }
 
-/* Reads a user byte and exits in
-   case it's violating memory access */
-static int get_user_byte_safe (const uint8_t *uaddr) { 
-  if (!is_user_vaddr(uaddr))
-    sys_exit(-1); 
+// Reads a user byte and exits in case it's violating memory access
+static uint32_t get_user_byte_safe (const uint8_t *uaddr)
+{
+	if (!is_user_vaddr(uaddr))
+		return 0xffffffff;
 
-  int result = get_user_byte(uaddr);; 
-  if (result == -1)
-    sys_exit(-1);
-
-  return result;
+	return get_user_byte(uaddr);
 }
 
-/* Reads from user memory with size and copies to dst. It exits in
-   case it's violating memory access */
-static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size) { 
-  for(size_t i = 0; i < size; i++) 
-    * (udst + i) = get_user_byte_safe(usrc + size) & 0xff;
+// Reads from user memory with size and copies to dst. It exits in case it's violating memory access
+static bool get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size)
+{
+	for (size_t i = 0; i < size; i++)
+	{
+		uint32_t status = get_user_byte_safe(usrc + size);
+		if (status == 0xffffffff)
+			return false; 
+		* (udst + i) = status & 0xff;
+	}
+	return true;
 }
 
-/* Checks user memory with size to check violations. It exits in
-   case it's violating memory access */
-static void check_user_safe (const uint8_t *usrc, size_t size) {
-  for(size_t i = 0; i < size; i++) 
-    get_user_byte_safe(usrc + size);
+// Checks user memory with size to check violations. It exits in case it's violating memory access
+static bool check_user_safe (const uint8_t *usrc, size_t size)
+{
+	for(size_t i = 0; i < size; i++) 
+		if (get_user_byte_safe(usrc + size) == 0xffffffff)
+			return false;
+
+	return true;
 }
 
-/* Writes BYTE to user address UDST.
-   UDST must be below PHYS_BASE.
-   Returns true if successful, false if a segfault occurred. */
+/* 
+ * Writes BYTE to user address UDST.
+ * UDST must be below PHYS_BASE.
+ * Returns true if successful, false if a segfault occurred.
+ */
 static bool
-put_user_byte (uint8_t *udst, uint8_t byte) {
-  int error_code;
-  asm ("movl $1f, %0; movb %b2, %1; 1:"
-      : "=&a" (error_code), "=m" (*udst) : "q" (byte)); return error_code != -1;
+put_user_byte (uint8_t *udst, uint8_t byte)
+{
+	int error_code;
+	asm volatile ("movl $1f, %0; movb %b2, %1; 1:" : "=&a" (error_code), "=m" (*udst) : "q" (byte));
+	return error_code != -1;
 }
