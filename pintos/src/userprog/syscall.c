@@ -34,7 +34,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	uint32_t* args = ((uint32_t*) f->esp);
 
-	if (check_user_safe(args, 4) == 0xffffffff)
+	if (!check_user_safe(args, 4))
 		sys_exit(-1);
 
 	/*
