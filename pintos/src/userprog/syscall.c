@@ -14,6 +14,8 @@ static void check_user_safe (const uint8_t *usrc, size_t size);
 static void check_user_str_safe(const char *uaddr);
 static bool put_user_byte (uint8_t *udst, uint8_t byte); 
 
+static struct file* get_file_safe(int fd);
+
 void sys_exit(int status)
 {
 	printf ("%s: exit(%d)\n", &thread_current ()->name, status);
@@ -78,7 +80,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		}
 		else
 		{
-			struct file *file = get_file(fd);
+			struct file *file = get_file_safe(fd);
 			f->eax = file_write (file, buf, size);
 		}
 	}
@@ -94,7 +96,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		f->eax = -1;
 		if (fd > 1)
 		{
-			struct file *file = get_file(fd);
+			struct file *file = get_file_safe(fd);
 			f->eax = file_read (file, buf, size);
 		}
 	}
@@ -119,7 +121,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 		if (fd > 1)
 		{
-			struct file *file = get_file(fd);
+			struct file *file = get_file_safe(fd);
 			file_close (file);
 			remove_file(file);
 		}
@@ -147,7 +149,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	{
 		check_user_safe(&args[1], 4);
 		int fd = args[1];
-		struct file *file = get_file(fd);
+		struct file *file = get_file_safe(fd);
 		f->eax = file_length (file);
 	}
 	else if (args[0] == SYS_SEEK)
@@ -155,14 +157,14 @@ syscall_handler (struct intr_frame *f UNUSED)
 		check_user_safe(&args[1], 4*2);
 		int fd = args[1];
 		unsigned position = args[2];
-		struct file *file = get_file(fd);
+		struct file *file = get_file_safe(fd);
 		file_seek (file, position);
 	}
 	else if (args[0] == SYS_TELL)
 	{
 		check_user_safe(&args[1], 4);
 		int fd = args[1];
-		struct file *file = get_file(fd);
+		struct file *file = get_file_safe(fd);
 		f->eax = file_tell (file);
 	}
 }
@@ -208,7 +210,7 @@ static void check_user_safe (const uint8_t *usrc, size_t size)
 		get_user_byte_safe(usrc + i);
 }
 
-
+// Checks string to be safe in terms of memory access (size is unknown)
 static void check_user_str_safe(const char *uaddr)
 {
   char *ptr = uaddr;
@@ -228,4 +230,13 @@ put_user_byte (uint8_t *udst, uint8_t byte)
 	int error_code;
 	asm volatile ("movl $1f, %0; movb %b2, %1; 1:" : "=&a" (error_code), "=m" (*udst) : "q" (byte));
 	return error_code != -1;
+}
+
+
+// Gets fd file or fails
+static struct file* get_file_safe(int fd) { 
+  struct file *ret = get_file(fd);
+  
+  if (ret == NULL)
+    sys_exit(-1);
 }
