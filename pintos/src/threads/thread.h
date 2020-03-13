@@ -109,10 +109,10 @@ struct list files;
 
 struct filemap
 {
-  int fd;
-  struct file* file_instance;
-  const char* file_name;
-  struct list_elem elem;
+   int fd;
+   struct file* file_instance;
+   const char* file_name;
+   struct list_elem elem;
 };
 
 
