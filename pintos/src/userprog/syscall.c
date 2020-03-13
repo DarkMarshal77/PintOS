@@ -58,15 +58,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_WRITE)
 	{
-    check_user_safe(args + 1, 4);
+    check_user_safe(args + 1, 4 * 3);
 		int fd = args[1];
 
-    check_user_safe(args + 3, 4);
 		size_t size = args[3];
 
-    check_user_safe(args + 2, 4);
-    check_user_safe(*(args + 2), size);
 		const char *buf = args[2];
+    check_user_safe(buf, size);
 
 		f->eax = -1; 
 		if (fd == 1)
@@ -89,6 +87,8 @@ static int get_user_byte (const uint8_t *uaddr) {
   return result;
 }
 
+/* Reads a user byte and exits in
+   case it's violating memory access */
 static int get_user_byte_safe (const uint8_t *uaddr) { 
   if (!is_user_vaddr(uaddr))
     sys_exit(-1); 
@@ -100,11 +100,15 @@ static int get_user_byte_safe (const uint8_t *uaddr) {
   return result;
 }
 
+/* Reads from user memory with size and copies to dst. It exits in
+   case it's violating memory access */
 static void get_user_safe (uint8_t *udst, const uint8_t *usrc, size_t size) { 
   for(size_t i = 0; i < size; i++) 
     * (udst + i) = get_user_byte_safe(usrc + size) & 0xff;
 }
 
+/* Checks user memory with size to check violations. It exits in
+   case it's violating memory access */
 static void check_user_safe (const uint8_t *usrc, size_t size) {
   for(size_t i = 0; i < size; i++) 
     get_user_byte_safe(usrc + size);
