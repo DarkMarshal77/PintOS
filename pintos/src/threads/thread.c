@@ -402,18 +402,19 @@ int add_file(struct file *file, char *file_name)
 {
   //printf("add_file for %s\n", file_name);
   struct filemap* n_filemap = (struct filemap*)(malloc(sizeof(struct filemap)));
+  n_filemap->file_name = (char*)(malloc(sizeof(char) * strlen(file_name)));
   n_filemap->file_instance = file;
   struct list* files = &thread_current()->files;
   struct list_elem* current = list_begin(files);
   int fd = 2;
   bool is_added = false;
-  printf("list head:%p\n", list_head(files));
-  printf("list begin:%p\n", list_begin(files));
-  printf("list end:%p\n", list_end(files));
+  // printf("list head:%p\n", list_head(files));
+  // printf("list begin:%p\n", list_begin(files));
+  // printf("list end:%p\n", list_end(files));
   for (current = list_begin(files); current != list_end(files); current = list_next(current))
   {
     struct filemap* cur_fm = list_entry(current, struct filemap, elem);
-    printf("current node:%p\n", current);
+    // printf("current node:%p\n", current);
     if (cur_fm->fd > fd)
     {
       n_filemap->fd = fd;

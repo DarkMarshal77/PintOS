@@ -69,10 +69,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 	}
 	else if (args[0] == SYS_OPEN)
 	{
-		//printf("Here is SYS_OPEN in syscall.c\n");
 		char *file_name = args[1];
 		struct file *file = filesys_open(file_name);
-		printf("After sysfile_open in syscall.c\nfile pointer is %p\nfile name is \"%s\"\n", file, file_name);
 
 		if (file != NULL)
 			f->eax = add_file(file, file_name);
