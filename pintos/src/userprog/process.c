@@ -513,7 +513,8 @@ setup_stack (void **esp, struct Arguments arguments)
   }
 
   /* word alignment */
-  uint32_t word_align = (uint32_t) top % WORD_SIZE;
+  uint32_t word_align = ((uint32_t)top - arguments.argc*WORD_SIZE) % 16;
+  word_align = (word_align - 12) % 16;
   top -= word_align;
   memset(top, 0, word_align);
 
