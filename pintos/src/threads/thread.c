@@ -99,6 +99,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  list_init(&open_execs);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -402,7 +403,7 @@ int add_file(struct file *file, char *file_name)
 {
   //printf("add_file for %s\n", file_name);
   struct filemap* n_filemap = (struct filemap*)(malloc(sizeof(struct filemap)));
-  n_filemap->file_name = (char*)(malloc(sizeof(char) * strlen(file_name)));
+  n_filemap->file_name = (char*)(malloc(sizeof(char) * (strlen(file_name)+1)));
   n_filemap->file_instance = file;
   struct list* files = &thread_current()->files;
   struct list_elem* current = list_begin(files);
@@ -418,7 +419,7 @@ int add_file(struct file *file, char *file_name)
     if (cur_fm->fd > fd)
     {
       n_filemap->fd = fd;
-      strlcpy(n_filemap->file_name, file_name, strlen(file_name));
+      strlcpy(n_filemap->file_name, file_name, strlen(file_name)+1);
       list_insert(current, &n_filemap->elem);
       is_added = true;
       break;
@@ -428,7 +429,7 @@ int add_file(struct file *file, char *file_name)
   }
   if (!is_added)
   {
-    strlcpy(n_filemap->file_name, file_name, strlen(file_name));
+    strlcpy(n_filemap->file_name, file_name, strlen(file_name)+1);
     n_filemap->fd = fd;
     list_insert(current, &n_filemap->elem);
   }
@@ -450,6 +451,20 @@ void remove_file(struct file *file)
       current = list_head(files);
     }
   }
+}
+
+void check_open_execs(const char* file_name, struct file* new_file)
+{
+	struct list* files = &open_execs;
+	struct list_elem* current = NULL;
+	for (current=list_begin(files); current!=list_end(files); current=list_next(current))
+	{
+    struct exec_file* e = list_entry(current, struct exec_file, elem);
+		if (!strcmp(file_name, e->file_name))
+    {
+      file_deny_write(new_file);
+    }
+	}
 }
 
 

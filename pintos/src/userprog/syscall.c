@@ -108,6 +108,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     check_user_str_safe(file_name);
 
 		struct file *file = filesys_open(file_name);
+		check_open_execs(file_name, file);
 
 		if (file != NULL)
 			f->eax = add_file(file, file_name);

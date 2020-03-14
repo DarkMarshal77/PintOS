@@ -156,4 +156,12 @@ struct file *get_file(int fd);
 int add_file(struct file *file, char *file_name);
 void remove_file(struct file *file);
 
+struct list open_execs;
+struct exec_file{
+   const char* file_name;
+   struct list_elem elem;
+};
+
+void check_open_execs(const char* file_name, struct file* new_file);
+
 #endif /* threads/thread.h */

@@ -277,6 +277,12 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
     goto done;
   }
 
+  //protecting the executable file form being written to by kernel
+  struct exec_file* n_exec_file = malloc(sizeof(struct exec_file));
+  n_exec_file->file_name = (char*)malloc(sizeof(char)*(strlen(file_name)+1));
+  strlcpy(n_exec_file->file_name, file_name, strlen(file_name)+1);
+  list_push_back(&open_execs, &n_exec_file->elem);
+
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++)
