@@ -15,6 +15,7 @@ static void check_user_str_safe(const char *uaddr);
 static bool put_user_byte (uint8_t *udst, uint8_t byte); 
 
 static struct file* get_file_safe(int fd);
+static char* get_file_name_safe(int fd);
 
 void sys_exit(int status)
 {
@@ -81,6 +82,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 		else
 		{
 			struct file *file = get_file_safe(fd);
+			char* file_name = get_file_name_safe(fd);
+			check_open_execs(file_name, file);
 			f->eax = file_write (file, buf, size);
 		}
 	}
@@ -108,10 +111,12 @@ syscall_handler (struct intr_frame *f UNUSED)
     check_user_str_safe(file_name);
 
 		struct file *file = filesys_open(file_name);
-		check_open_execs(file_name, file);
 
 		if (file != NULL)
+		{
 			f->eax = add_file(file, file_name);
+			check_open_execs(file_name, file);
+		}
 		else
 			f->eax = -1;
 	}
@@ -240,4 +245,14 @@ static struct file* get_file_safe(int fd) {
   
   if (ret == NULL)
     sys_exit(-1);
+  return ret;
+}
+
+
+static char* get_file_name_safe(int fd){
+	char* ret = get_file_name(fd);
+
+	if (ret == NULL)
+		sys_exit(-1);
+	return ret;
 }

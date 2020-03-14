@@ -398,6 +398,25 @@ struct file *get_file(int fd)
   return ret;
 }
 
+// get filename from fd
+char *get_file_name(int fd)
+{
+  struct list* files = &thread_current()->files;
+  struct list_elem* current_node;
+  char* ret = NULL;
+
+  for (current_node = list_begin(files); current_node != list_end(files); current_node = list_next(current_node))
+  {
+    struct filemap* f_map = list_entry(current_node, struct filemap, elem);
+    if (f_map->fd == fd)
+    {
+      ret = f_map->file_name;
+      break;
+    }
+  }
+  return ret;
+}
+
 // create file map and add to thread's file list
 int add_file(struct file *file, char *file_name)
 {
@@ -457,14 +476,18 @@ void check_open_execs(const char* file_name, struct file* new_file)
 {
 	struct list* files = &open_execs;
 	struct list_elem* current = NULL;
+  bool b = false;
 	for (current=list_begin(files); current!=list_end(files); current=list_next(current))
 	{
     struct exec_file* e = list_entry(current, struct exec_file, elem);
 		if (!strcmp(file_name, e->file_name))
     {
       file_deny_write(new_file);
+      b = true;
     }
 	}
+  if (!b)
+    file_allow_write(new_file);
 }
 
 
@@ -556,6 +579,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_init(&t->files);
+  t->thread_exe_file_name = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

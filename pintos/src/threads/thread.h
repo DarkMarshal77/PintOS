@@ -93,6 +93,8 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+    const char* thread_exe_file_name;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct list files;                  /* files opened by thread */
@@ -153,6 +155,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct file *get_file(int fd);
+char* get_file_name(int fd);
 int add_file(struct file *file, char *file_name);
 void remove_file(struct file *file);
 

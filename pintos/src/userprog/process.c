@@ -131,6 +131,19 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  /* remove thread's executable file from open_execs */
+  struct list* files = &open_execs;
+  struct list_elem* current = NULL;
+  for (current = list_begin(files); current != list_end(files); current = list_next(current))
+  {
+    struct exec_file* e = list_entry(current, struct exec_file, elem);
+    if (!strcmp(e->file_name, cur->thread_exe_file_name))
+    {
+      list_remove(current);
+      break;
+    }
+  }
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -282,6 +295,9 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
   n_exec_file->file_name = (char*)malloc(sizeof(char)*(strlen(file_name)+1));
   strlcpy(n_exec_file->file_name, file_name, strlen(file_name)+1);
   list_push_back(&open_execs, &n_exec_file->elem);
+
+  t->thread_exe_file_name = (char*)malloc(sizeof(char)*(strlen(file_name) + 1));
+  strlcpy(t->thread_exe_file_name, file_name, strlen(file_name)+1); 
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
