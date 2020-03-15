@@ -27,6 +27,17 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+#ifdef USERPROG
+struct process_d {
+   tid_t tid;
+   struct semaphore loaded;
+   struct semaphore exited;
+   int exit_status; //default is -1
+   struct list_elem child_elem;
+};
+#endif
+
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -104,6 +115,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+   struct list children;
+   struct thread* parent;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -166,5 +180,8 @@ struct exec_file{
 };
 
 void check_open_execs(const char* file_name, struct file* new_file);
+tid_t execute_child_process(const char* filename);
+
+void inform_parent(void);
 
 #endif /* threads/thread.h */

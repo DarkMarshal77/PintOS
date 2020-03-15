@@ -580,6 +580,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   list_init(&t->files);
   t->thread_exe_file_name = NULL;
+  t->parent = NULL;
+
+  list_init(&t->children);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -696,6 +699,70 @@ allocate_tid (void)
   return tid;
 }
 
+
+tid_t execute_child_process(const char* filename)
+{
+  tid_t cid = process_execute(filename);
+  if (cid == TID_ERROR)
+    return TID_ERROR;
+  
+  struct list_elem *e;
+  struct thread* child_thread = NULL;
+  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+  {
+    struct thread *t = list_entry (e, struct thread, allelem);
+    if (t->tid == cid)
+    {
+      child_thread = t;
+      break;
+    }
+  }
+
+  struct thread* cur_t = thread_current();
+  child_thread->parent = cur_t;
+
+  struct process_d* child_p = (struct process_d*)malloc(sizeof(struct process_d));
+  child_p->exit_status = 0;
+  child_p->tid = cid;
+  sema_init(&child_p->loaded, 0);
+  sema_init(&child_p->exited, 0);
+  list_push_back(&cur_t->children, &child_p->child_elem);
+  sema_down(&child_p->loaded);
+
+  //printf("back to the parent thread\n");
+  if (child_p->exit_status == -2)
+    return TID_ERROR;
+  return child_p->tid;
+}
+
+void inform_parent(void)
+{
+  // informing parent that the child has exited
+  struct thread* parent = thread_current()->parent;
+  if (parent == NULL)
+    return;
+  struct list_elem* e = NULL;
+  bool parent_dead = true;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e=list_next(e))
+  {
+    struct thread* t = list_entry(e, struct thread, allelem);
+    if (t->tid == parent->tid)
+      parent_dead = false;
+  } 
+  if (!parent_dead)
+  {
+    for (e = list_begin(&parent->children); e != list_end(&parent->children); e = list_next(e))
+    {
+      struct process_d* p = list_entry(e, struct process_d, child_elem);
+      if (p->tid == thread_tid())
+      {
+        sema_up(&p->exited);
+        break;
+      }
+    }
+  }
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

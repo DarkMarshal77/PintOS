@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -55,7 +56,26 @@ syscall_handler (struct intr_frame *f UNUSED)
 		
 		f->eax = args[1];
 		printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
+		inform_parent();
 		thread_exit ();
+	}
+	else if (args[0] == SYS_HALT)
+	{
+		shutdown_power_off();
+	}
+	else if (args[0] == SYS_EXEC)
+	{
+		check_user_safe(&args[1], 4);
+		char *file_name = args[1];
+
+   		check_user_str_safe(file_name);
+		tid_t cid = execute_child_process(file_name);
+		f->eax = (int)cid;
+	}
+	else if (args[0] == SYS_WAIT)
+	{
+		check_user_safe(&args[1], 4);
+		tid_t cid = args[1];
 	}
 	else if (args[0] == SYS_PRACTICE)
 	{

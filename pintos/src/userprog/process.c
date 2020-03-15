@@ -93,10 +93,35 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (arguments, &if_.eip, &if_.esp);
 
+  #ifdef USERPROG
+  // sema up  inner_process->loaded of current thread
+  struct thread* parent = thread_current()->parent;
+  if (parent != NULL)
+  {
+    struct process_d* child = NULL;
+    struct list_elem* e = NULL;
+    for (e=list_begin(&parent->children); e != list_end(&parent->children); e = list_next(e))
+    {
+      struct process_d* p = list_entry(e, struct process_d, child_elem);
+      if (p->tid == thread_tid())
+      {
+        child = p;
+        break;
+      }
+    }
+    if (!success)
+      child->exit_status = -2;
+    sema_up(&child->loaded);
+  }
+  #endif
+
   /* If load failed, quit. */
   palloc_free_page (file_name_);
   if (!success)
+  {
+    inform_parent();
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -126,7 +151,7 @@ process_wait (tid_t child_tid UNUSED)
 
 /* Free the current process's resources. */
 void
-process_exit (void)
+process_exit ()
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
@@ -134,13 +159,20 @@ process_exit (void)
   /* remove thread's executable file from open_execs */
   struct list* files = &open_execs;
   struct list_elem* current = NULL;
-  for (current = list_begin(files); current != list_end(files); current = list_next(current))
+  /*
+   maybe the thread was created but there was problem loading
+   as a result, thread_exe_file_name might be null  
+  */
+  if (cur->thread_exe_file_name != NULL)
   {
-    struct exec_file* e = list_entry(current, struct exec_file, elem);
-    if (!strcmp(e->file_name, cur->thread_exe_file_name))
+    for (current = list_begin(files); current != list_end(files); current = list_next(current))
     {
-      list_remove(current);
-      break;
+      struct exec_file* e = list_entry(current, struct exec_file, elem);
+      if (!strcmp(e->file_name, cur->thread_exe_file_name))
+      {
+        list_remove(current);
+        break;
+      }
     }
   }
 
