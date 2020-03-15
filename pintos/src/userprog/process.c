@@ -60,8 +60,8 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  
-  tname = strtok_r(file_name, " ", &saveptr);
+
+  tname = strtok_r(fn_copy, " ", &saveptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (tname, PRI_DEFAULT, start_process, fn_copy);
@@ -165,7 +165,7 @@ process_exit ()
   struct list_elem* current = NULL;
   /*
    maybe the thread was created but there was problem loading
-   as a result, thread_exe_file_name might be null  
+   as a result, thread_exe_file_name might be null
   */
   if (cur->thread_exe_file_name != NULL)
   {
@@ -333,7 +333,7 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
   list_push_back(&open_execs, &n_exec_file->elem);
 
   t->thread_exe_file_name = (char*)malloc(sizeof(char)*(strlen(file_name) + 1));
-  strlcpy(t->thread_exe_file_name, file_name, strlen(file_name)+1); 
+  strlcpy(t->thread_exe_file_name, file_name, strlen(file_name)+1);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -557,14 +557,14 @@ setup_stack (void **esp, struct Arguments arguments)
   /* push a null word */
   top -= WORD_SIZE;
   memset(top, 0, WORD_SIZE);
-  
+
   /* push address of arguments */
   for (i = arguments.argc - 1; i >= 0; i--)
   {
     top -= WORD_SIZE;
     memcpy(top, &argument_ptr[i], WORD_SIZE);
   }
-  
+
   /* Push a pointer to the first address */
   void *argv_adr = (void *)top;
   top -= WORD_SIZE;
