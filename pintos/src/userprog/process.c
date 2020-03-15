@@ -56,13 +56,23 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  
-  tname = strtok_r(file_name, " ", &saveptr);
+
+  tname = palloc_get_page (0);
+  if (tname == NULL)
+  {
+    palloc_free_page (fn_copy);
+    return TID_ERROR;
+  }
+  strlcpy (tname, file_name, PGSIZE);
+  tname = strtok_r(tname, " ", &saveptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (tname, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
+  {
     palloc_free_page (fn_copy);
+    palloc_free_page (tname);
+  }
   return tid;
 }
 
@@ -499,14 +509,14 @@ setup_stack (void **esp, struct Arguments arguments)
   /* push a null word */
   top -= WORD_SIZE;
   memset(top, 0, WORD_SIZE);
-  
+
   /* push address of arguments */
   for (i = arguments.argc - 1; i >= 0; i--)
   {
     top -= WORD_SIZE;
     memcpy(top, &argument_ptr[i], WORD_SIZE);
   }
-  
+
   /* Push a pointer to the first address */
   void *argv_adr = (void *)top;
   top -= WORD_SIZE;
