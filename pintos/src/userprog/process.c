@@ -61,7 +61,7 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  tname = strtok_r(fn_copy, " ", &saveptr);
+  tname = strtok_r(file_name, " ", &saveptr);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (tname, PRI_DEFAULT, start_process, fn_copy);
