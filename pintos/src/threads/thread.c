@@ -731,7 +731,7 @@ tid_t execute_child_process(const char* filename)
   sema_down(&child_p->loaded);
 
   //printf("back to the parent thread\n");
-  if (child_p->exit_status == -2)
+  if (child_p->exit_status == -1)
     return TID_ERROR;
   return child_p->tid;
 }

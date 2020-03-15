@@ -33,7 +33,7 @@ struct Arguments
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (struct Arguments arguments, void (**eip) (void), void **esp);
-
+static int open_threads;
 
 
 
@@ -53,7 +53,9 @@ process_execute (const char *file_name)
   {
     sema_init (&temporary, 0);
     first_load = false;
+    open_threads = 0;
   }
+  open_threads++;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -114,7 +116,7 @@ start_process (void *file_name_)
       }
     }
     if (!success)
-      child->exit_status = -2;
+      child->exit_status = -1;
     sema_up(&child->loaded);
   }
   #endif
@@ -196,7 +198,9 @@ process_exit ()
     pagedir_activate (NULL);
     pagedir_destroy (pd);
   }
-  sema_up (&temporary);
+  open_threads --;
+  if (open_threads == 0)
+    sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
