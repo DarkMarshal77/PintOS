@@ -100,6 +100,7 @@ thread_init (void)
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
   list_init(&open_execs);
+  first_load = true;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -735,7 +736,7 @@ tid_t execute_child_process(const char* filename)
   return child_p->tid;
 }
 
-void inform_parent(void)
+void inform_parent(int status)
 {
   // informing parent that the child has exited
   struct thread* parent = thread_current()->parent;
@@ -756,6 +757,7 @@ void inform_parent(void)
       struct process_d* p = list_entry(e, struct process_d, child_elem);
       if (p->tid == thread_tid())
       {
+        p->exit_status = status;
         sema_up(&p->exited);
         break;
       }

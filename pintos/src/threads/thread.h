@@ -182,6 +182,8 @@ struct exec_file{
 void check_open_execs(const char* file_name, struct file* new_file);
 tid_t execute_child_process(const char* filename);
 
-void inform_parent(void);
+void inform_parent(int status);
+
+bool first_load;
 
 #endif /* threads/thread.h */
