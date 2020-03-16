@@ -27,15 +27,14 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-#ifdef USERPROG
+//#ifdef USERPROG
 struct process_d {
    tid_t tid;
    struct semaphore loaded;
    struct semaphore exited;
    int exit_status; //default is -1
-   struct list_elem child_elem;
 };
-#endif
+//#endif
 
 
 /* A kernel thread or user process.
@@ -116,7 +115,10 @@ struct thread
 #endif
 
    struct list children;
+   struct list_elem child_elem;
+   struct process_d inner_process;
    struct thread* parent;
+   struct list_elem process_elem;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
@@ -130,6 +132,11 @@ struct filemap
    const char* file_name;
    struct list_elem elem;
 };
+
+
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+struct list all_list;
 
 
 /* If false (default), use round-robin scheduler.
@@ -182,8 +189,9 @@ struct exec_file{
 void check_open_execs(const char* file_name, struct file* new_file);
 tid_t execute_child_process(const char* filename);
 
-void inform_parent(int status);
+int wait_for_child(tid_t tid);
 
 bool first_load;
+int open_threads;
 
 #endif /* threads/thread.h */

@@ -33,7 +33,6 @@ struct Arguments
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (struct Arguments arguments, void (**eip) (void), void **esp);
-static int open_threads;
 
 
 
@@ -49,12 +48,6 @@ process_execute (const char *file_name)
   char* tname;
   char *saveptr;
 
-  if (first_load)
-  {
-    sema_init (&temporary, 0);
-    first_load = false;
-    open_threads = 0;
-  }
   open_threads++;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -102,22 +95,12 @@ start_process (void *file_name_)
   #ifdef USERPROG
   // sema up  inner_process->loaded of current thread
   struct thread* parent = thread_current()->parent;
+  struct thread* current = thread_current();
   if (parent != NULL)
   {
-    struct process_d* child = NULL;
-    struct list_elem* e = NULL;
-    for (e=list_begin(&parent->children); e != list_end(&parent->children); e = list_next(e))
-    {
-      struct process_d* p = list_entry(e, struct process_d, child_elem);
-      if (p->tid == thread_tid())
-      {
-        child = p;
-        break;
-      }
-    }
     if (!success)
-      child->exit_status = -1;
-    sema_up(&child->loaded);
+      current->inner_process.exit_status = -1;
+    sema_up(&current->inner_process.loaded);
   }
   #endif
 
@@ -125,7 +108,7 @@ start_process (void *file_name_)
   palloc_free_page (file_name_);
   if (!success)
   {
-    inform_parent(-1);
+    thread_current()->inner_process.exit_status = -1;
     thread_exit ();
   }
 
@@ -149,10 +132,28 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
-  sema_down (&temporary);
-  return 0;
+  if (first_load)
+  {
+    first_load = false;
+    sema_down(&temporary); 
+    return 0; 
+  }
+  struct list_elem* e;
+  int ret = 0;
+  for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(&all_process))
+  {
+    struct thread* t = list_entry(e, struct thread, process_elem);
+    if (t->tid == child_tid)
+    {
+      sema_down(&t->inner_process.exited);
+      ret = t->inner_process.exit_status;
+      list_remove(e);
+      break;
+    }
+  }
+  return ret;
 }
 
 /* Free the current process's resources. */
@@ -199,8 +200,9 @@ process_exit ()
     pagedir_destroy (pd);
   }
   open_threads --;
+  sema_up(&cur->inner_process.exited);
   if (open_threads == 0)
-    sema_up (&temporary);
+    sema_up(&temporary);
 }
 
 /* Sets up the CPU for running user code in the current

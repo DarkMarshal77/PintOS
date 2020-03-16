@@ -12,9 +12,9 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#ifdef USERPROG
+//#ifdef USERPROG
 #include "userprog/process.h"
-#endif
+//#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -24,10 +24,6 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
-/* List of all processes.  Processes are added to this list
-   when they are first scheduled and removed when they exit. */
-static struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -101,6 +97,8 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
   list_init(&open_execs);
   first_load = true;
+  open_threads = 0;
+  list_init(&all_process);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -185,6 +183,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->inner_process.tid = tid;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -294,7 +293,6 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
-  
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -582,11 +580,13 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->files);
   t->thread_exe_file_name = NULL;
   t->parent = NULL;
-
+  sema_init(&t->inner_process.exited, 0);
+  sema_init(&t->inner_process.loaded, 0);
   list_init(&t->children);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+  list_push_back(&all_process, &t->process_elem);
   intr_set_level (old_level);
 }
 
@@ -709,9 +709,9 @@ tid_t execute_child_process(const char* filename)
   
   struct list_elem *e;
   struct thread* child_thread = NULL;
-  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+  for (e = list_begin (&all_process); e != list_end (&all_process); e = list_next (e))
   {
-    struct thread *t = list_entry (e, struct thread, allelem);
+    struct thread *t = list_entry (e, struct thread, process_elem);
     if (t->tid == cid)
     {
       child_thread = t;
@@ -722,47 +722,32 @@ tid_t execute_child_process(const char* filename)
   struct thread* cur_t = thread_current();
   child_thread->parent = cur_t;
 
-  struct process_d* child_p = (struct process_d*)malloc(sizeof(struct process_d));
-  child_p->exit_status = 0;
-  child_p->tid = cid;
-  sema_init(&child_p->loaded, 0);
-  sema_init(&child_p->exited, 0);
-  list_push_back(&cur_t->children, &child_p->child_elem);
-  sema_down(&child_p->loaded);
+  list_push_back(&cur_t->children, &child_thread->child_elem);
+  sema_down(&child_thread->inner_process.loaded);
 
   //printf("back to the parent thread\n");
-  if (child_p->exit_status == -1)
+  if (child_thread->inner_process.exit_status == -1)
     return TID_ERROR;
-  return child_p->tid;
+  return cid;
 }
 
-void inform_parent(int status)
+int wait_for_child(tid_t tid)
 {
-  // informing parent that the child has exited
-  struct thread* parent = thread_current()->parent;
-  if (parent == NULL)
-    return;
+  struct thread* current = thread_current();
   struct list_elem* e = NULL;
-  bool parent_dead = true;
-  for (e = list_begin(&all_list); e != list_end(&all_list); e=list_next(e))
+  struct thread* child_thread = NULL;
+  for (e = list_begin(&current->children); e != list_end(&current->children); e = list_next(e))
   {
-    struct thread* t = list_entry(e, struct thread, allelem);
-    if (t->tid == parent->tid)
-      parent_dead = false;
-  } 
-  if (!parent_dead)
-  {
-    for (e = list_begin(&parent->children); e != list_end(&parent->children); e = list_next(e))
+    struct thread* t = list_entry(e, struct thread, child_elem);
+    if (t->tid == tid)
     {
-      struct process_d* p = list_entry(e, struct process_d, child_elem);
-      if (p->tid == thread_tid())
-      {
-        p->exit_status = status;
-        sema_up(&p->exited);
-        break;
-      }
+      child_thread = t;
+      break;
     }
   }
+  if (child_thread == NULL)
+    return -1;
+  return  process_wait(tid);
 }
 
 /* Offset of `stack' member within `struct thread'.

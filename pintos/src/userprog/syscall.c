@@ -56,7 +56,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 		
 		f->eax = args[1];
 		printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
-		inform_parent(args[1]);
+		thread_current()->inner_process.exit_status = args[1];
 		thread_exit ();
 	}
 	else if (args[0] == SYS_HALT)
@@ -76,6 +76,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	{
 		check_user_safe(&args[1], 4);
 		tid_t cid = args[1];
+		f->eax = wait_for_child(cid);
 	}
 	else if (args[0] == SYS_PRACTICE)
 	{
