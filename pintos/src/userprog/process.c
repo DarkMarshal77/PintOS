@@ -153,7 +153,7 @@ process_wait (tid_t child_tid)
   }
   struct list_elem* e;
   int ret = 0;
-  for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(&all_process))
+  for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(e))
   {
     struct thread* t = list_entry(e, struct thread, process_elem);
     if (t->tid == child_tid)
