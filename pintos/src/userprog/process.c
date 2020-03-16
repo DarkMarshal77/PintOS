@@ -147,6 +147,7 @@ process_wait (tid_t child_tid)
   if (first_load)
   {
     first_load = false;
+    sema_init(&temporary, 0);
     sema_down(&temporary); 
     return 0; 
   }
