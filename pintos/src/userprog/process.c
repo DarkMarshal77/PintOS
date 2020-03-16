@@ -152,15 +152,13 @@ process_wait (tid_t child_tid)
     return 0;
   }
   struct list_elem* e;
-  int ret = 0;
+  int ret = -1;
   for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(e))
   {
     struct thread* t = list_entry(e, struct thread, process_elem);
     if (t->tid == child_tid)
     {
-      printf("child stat:%d\n", t->inner_process.exit_status);
       sema_down(&t->inner_process.exited);
-      printf("child stat:%d\n", t->inner_process.exit_status);
       ret = t->inner_process.exit_status;
       list_remove(&t->process_elem);
       break;
