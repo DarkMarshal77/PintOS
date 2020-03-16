@@ -159,7 +159,6 @@ process_wait (tid_t child_tid)
     if (t->tid == child_tid)
     {
       sema_down(&t->inner_process.exited);
-      printf("child status:%d\n", t->inner_process.exit_status);
       ret = t->inner_process.exit_status;
       list_remove(&t->process_elem);
       struct list_elem* tmpelem;
