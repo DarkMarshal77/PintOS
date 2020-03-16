@@ -90,7 +90,7 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init(&all_process);
-  
+
   list_init(&open_execs);
   first_load = true;
   open_threads = 0;
@@ -99,7 +99,7 @@ thread_init (void)
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();  
+  initial_thread->tid = allocate_tid ();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -657,7 +657,7 @@ thread_schedule_tail (struct thread *prev)
      pull out the rug under itself.  (We don't free
      initial_thread because its memory was not obtained via
      palloc().) */
-  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
+  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread && prev->parent == NULL)
     {
       ASSERT (prev != cur);
       palloc_free_page (prev);
@@ -707,7 +707,7 @@ tid_t execute_child_process(const char* filename)
   tid_t cid = process_execute(filename);
   if (cid == TID_ERROR)
     return TID_ERROR;
-  
+
   struct list_elem *e;
   struct thread* child_thread = NULL;
   for (e = list_begin (&all_process); e != list_end (&all_process); e = list_next (e))

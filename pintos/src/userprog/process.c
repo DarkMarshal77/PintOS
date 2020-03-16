@@ -148,8 +148,8 @@ process_wait (tid_t child_tid)
   {
     first_load = false;
     sema_init(&temporary, 0);
-    sema_down(&temporary); 
-    return 0; 
+    sema_down(&temporary);
+    return 0;
   }
   struct list_elem* e;
   int ret = 0;
@@ -158,7 +158,9 @@ process_wait (tid_t child_tid)
     struct thread* t = list_entry(e, struct thread, process_elem);
     if (t->tid == child_tid)
     {
+      printf("child stat:%d\n", t->inner_process.exit_status);
       sema_down(&t->inner_process.exited);
+      printf("child stat:%d\n", t->inner_process.exit_status);
       ret = t->inner_process.exit_status;
       list_remove(&t->process_elem);
       break;
