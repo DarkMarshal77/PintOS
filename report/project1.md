@@ -20,3 +20,5 @@ We store open files per thread (Opposed to initial design). Also we store all ex
 
 ### Threads Syscalls
 It's completely same as the design. We only store a list of processes globally to find child thread in process list.
+
+To have access to child thread after the child finishes we remove child page in the parrent if it's parrent exists.
