@@ -152,15 +152,28 @@ process_wait (tid_t child_tid)
     return 0;
   }
   struct list_elem* e;
-  int ret = -1;
+  int ret = 0;
   for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(e))
   {
     struct thread* t = list_entry(e, struct thread, process_elem);
     if (t->tid == child_tid)
     {
       sema_down(&t->inner_process.exited);
+      printf("child status:%d\n", t->inner_process.exit_status);
       ret = t->inner_process.exit_status;
       list_remove(&t->process_elem);
+      struct list_elem* tmpelem;
+      struct list* children = &t->parent->children;
+      for (tmpelem = list_begin(children); tmpelem!=list_end(children); tmpelem=list_next(children))
+      {
+          struct thread* c_thread = list_entry(tmpelem, struct thread, child_elem);
+          if (c_thread->tid == child_tid)
+          {
+            list_remove(tmpelem);
+            break;
+          }
+      }
+      palloc_free_page(t);
       break;
     }
   }
