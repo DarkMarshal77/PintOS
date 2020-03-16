@@ -36,7 +36,6 @@ static bool load (struct Arguments arguments, void (**eip) (void), void **esp);
 
 
 
-
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -49,7 +48,7 @@ process_execute (const char *file_name)
   char* tname;
   char *saveptr;
 
-  sema_init (&temporary, 0);
+  open_threads++;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -103,10 +102,25 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (arguments, &if_.eip, &if_.esp);
 
+  #ifdef USERPROG
+  // sema up  inner_process->loaded of current thread
+  struct thread* parent = thread_current()->parent;
+  struct thread* current = thread_current();
+  if (parent != NULL)
+  {
+    if (!success)
+      current->inner_process.exit_status = -1;
+    sema_up(&current->inner_process.loaded);
+  }
+  #endif
+
   /* If load failed, quit. */
   palloc_free_page (file_name_);
   if (!success)
+  {
+    thread_current()->inner_process.exit_status = -1;
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -128,18 +142,69 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
-  sema_down (&temporary);
-  return 0;
+  if (first_load)
+  {
+    first_load = false;
+    sema_init(&temporary, 0);
+    sema_down(&temporary);
+    return 0;
+  }
+  struct list_elem* e;
+  int ret = 0;
+  for (e=list_begin(&all_process); e!=list_end(&all_process); e=list_next(e))
+  {
+    struct thread* t = list_entry(e, struct thread, process_elem);
+    if (t->tid == child_tid)
+    {
+      sema_down(&t->inner_process.exited);
+      ret = t->inner_process.exit_status;
+      list_remove(&t->process_elem);
+      struct list_elem* tmpelem;
+      struct list* children = &t->parent->children;
+      for (tmpelem = list_begin(children); tmpelem!=list_end(children); tmpelem=list_next(children))
+      {
+          struct thread* c_thread = list_entry(tmpelem, struct thread, child_elem);
+          if (c_thread->tid == child_tid)
+          {
+            list_remove(tmpelem);
+            break;
+          }
+      }
+      palloc_free_page(t);
+      break;
+    }
+  }
+  return ret;
 }
 
 /* Free the current process's resources. */
 void
-process_exit (void)
+process_exit ()
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  /* remove thread's executable file from open_execs */
+  struct list* files = &open_execs;
+  struct list_elem* current = NULL;
+  /*
+   maybe the thread was created but there was problem loading
+   as a result, thread_exe_file_name might be null
+  */
+  if (cur->thread_exe_file_name != NULL)
+  {
+    for (current = list_begin(files); current != list_end(files); current = list_next(current))
+    {
+      struct exec_file* e = list_entry(current, struct exec_file, elem);
+      if (!strcmp(e->file_name, cur->thread_exe_file_name))
+      {
+        list_remove(current);
+        break;
+      }
+    }
+  }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -157,7 +222,10 @@ process_exit (void)
     pagedir_activate (NULL);
     pagedir_destroy (pd);
   }
-  sema_up (&temporary);
+  open_threads --;
+  sema_up(&cur->inner_process.exited);
+  if (open_threads == 0)
+    sema_up(&temporary);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -286,6 +354,15 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
     printf ("load: %s: error loading executable\n", file_name);
     goto done;
   }
+
+  //protecting the executable file form being written to by kernel
+  struct exec_file* n_exec_file = malloc(sizeof(struct exec_file));
+  n_exec_file->file_name = (char*)malloc(sizeof(char)*(strlen(file_name)+1));
+  strlcpy(n_exec_file->file_name, file_name, strlen(file_name)+1);
+  list_push_back(&open_execs, &n_exec_file->elem);
+
+  t->thread_exe_file_name = (char*)malloc(sizeof(char)*(strlen(file_name) + 1));
+  strlcpy(t->thread_exe_file_name, file_name, strlen(file_name)+1);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;

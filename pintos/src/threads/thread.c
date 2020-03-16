@@ -8,12 +8,13 @@
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#ifdef USERPROG
+//#ifdef USERPROG
 #include "userprog/process.h"
-#endif
+//#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -23,10 +24,6 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
-/* List of all processes.  Processes are added to this list
-   when they are first scheduled and removed when they exit. */
-static struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -92,6 +89,11 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init(&all_process);
+
+  list_init(&open_execs);
+  first_load = true;
+  open_threads = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -182,6 +184,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->inner_process.tid = tid;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -375,6 +378,118 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
+
+// get file from fd
+struct file *get_file(int fd)
+{
+  struct list* files = &thread_current()->files;
+  struct list_elem* current_node;
+  struct file* ret = NULL;
+
+  for (current_node = list_begin(files); current_node != list_end(files); current_node = list_next(current_node))
+  {
+    struct filemap* f_map = list_entry(current_node, struct filemap, elem);
+    if (f_map->fd == fd)
+    {
+      ret = f_map->file_instance;
+      break;
+    }
+  }
+  return ret;
+}
+
+// get filename from fd
+char *get_file_name(int fd)
+{
+  struct list* files = &thread_current()->files;
+  struct list_elem* current_node;
+  char* ret = NULL;
+
+  for (current_node = list_begin(files); current_node != list_end(files); current_node = list_next(current_node))
+  {
+    struct filemap* f_map = list_entry(current_node, struct filemap, elem);
+    if (f_map->fd == fd)
+    {
+      ret = f_map->file_name;
+      break;
+    }
+  }
+  return ret;
+}
+
+// create file map and add to thread's file list
+int add_file(struct file *file, char *file_name)
+{
+  //printf("add_file for %s\n", file_name);
+  struct filemap* n_filemap = (struct filemap*)(malloc(sizeof(struct filemap)));
+  n_filemap->file_name = (char*)(malloc(sizeof(char) * (strlen(file_name)+1)));
+  n_filemap->file_instance = file;
+  struct list* files = &thread_current()->files;
+  struct list_elem* current = list_begin(files);
+  int fd = 2;
+  bool is_added = false;
+  // printf("list head:%p\n", list_head(files));
+  // printf("list begin:%p\n", list_begin(files));
+  // printf("list end:%p\n", list_end(files));
+  for (current = list_begin(files); current != list_end(files); current = list_next(current))
+  {
+    struct filemap* cur_fm = list_entry(current, struct filemap, elem);
+    // printf("current node:%p\n", current);
+    if (cur_fm->fd > fd)
+    {
+      n_filemap->fd = fd;
+      strlcpy(n_filemap->file_name, file_name, strlen(file_name)+1);
+      list_insert(current, &n_filemap->elem);
+      is_added = true;
+      break;
+    }
+    else
+      fd ++;
+  }
+  if (!is_added)
+  {
+    strlcpy(n_filemap->file_name, file_name, strlen(file_name)+1);
+    n_filemap->fd = fd;
+    list_insert(current, &n_filemap->elem);
+  }
+
+  return fd;
+}
+
+// remove file map thread's file list
+void remove_file(struct file *file)
+{
+  struct list* files = &thread_current()->files;
+  struct list_elem* current;
+  for (current = list_begin(files); current != list_end(files); current = list_next(current))
+  {
+    struct filemap* cur_fm = list_entry(current, struct filemap, elem);
+    if (cur_fm->file_instance == file)
+    {
+      list_remove(current);
+      current = list_head(files);
+    }
+  }
+}
+
+void check_open_execs(const char* file_name, struct file* new_file)
+{
+	struct list* files = &open_execs;
+	struct list_elem* current = NULL;
+  bool b = false;
+	for (current=list_begin(files); current!=list_end(files); current=list_next(current))
+	{
+    struct exec_file* e = list_entry(current, struct exec_file, elem);
+		if (!strcmp(file_name, e->file_name))
+    {
+      file_deny_write(new_file);
+      b = true;
+    }
+	}
+  if (!b)
+    file_allow_write(new_file);
+}
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -463,9 +578,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init(&t->files);
+  t->thread_exe_file_name = NULL;
+  t->parent = NULL;
+  sema_init(&t->inner_process.exited, 0);
+  sema_init(&t->inner_process.loaded, 0);
+  list_init(&t->children);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+  list_push_back(&all_process, &t->process_elem);
   intr_set_level (old_level);
 }
 
@@ -535,7 +657,7 @@ thread_schedule_tail (struct thread *prev)
      pull out the rug under itself.  (We don't free
      initial_thread because its memory was not obtained via
      palloc().) */
-  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
+  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread && prev->parent == NULL)
     {
       ASSERT (prev != cur);
       palloc_free_page (prev);
@@ -579,6 +701,56 @@ allocate_tid (void)
   return tid;
 }
 
+
+tid_t execute_child_process(const char* filename)
+{
+  tid_t cid = process_execute(filename);
+  if (cid == TID_ERROR)
+    return TID_ERROR;
+
+  struct list_elem *e;
+  struct thread* child_thread = NULL;
+  for (e = list_begin (&all_process); e != list_end (&all_process); e = list_next (e))
+  {
+    struct thread *t = list_entry (e, struct thread, process_elem);
+    if (t->tid == cid)
+    {
+      child_thread = t;
+      break;
+    }
+  }
+
+  struct thread* cur_t = thread_current();
+  child_thread->parent = cur_t;
+
+  list_push_back(&cur_t->children, &child_thread->child_elem);
+  sema_down(&child_thread->inner_process.loaded);
+
+  //printf("back to the parent thread\n");
+  if (child_thread->inner_process.exit_status == -1)
+    return TID_ERROR;
+  return cid;
+}
+
+int wait_for_child(tid_t tid)
+{
+  struct thread* current = thread_current();
+  struct list_elem* e = NULL;
+  struct thread* child_thread = NULL;
+  for (e = list_begin(&current->children); e != list_end(&current->children); e = list_next(e))
+  {
+    struct thread* t = list_entry(e, struct thread, child_elem);
+    if (t->tid == tid)
+    {
+      child_thread = t;
+      break;
+    }
+  }
+  if (child_thread == NULL)
+    return -1;
+  return  process_wait(tid);
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
