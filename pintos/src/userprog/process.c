@@ -160,7 +160,7 @@ process_wait (tid_t child_tid)
     {
       sema_down(&t->inner_process.exited);
       ret = t->inner_process.exit_status;
-      list_remove(e);
+      list_remove(&t->process_elem);
       break;
     }
   }
