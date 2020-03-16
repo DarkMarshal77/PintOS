@@ -89,16 +89,17 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init(&all_process);
+  
+  list_init(&open_execs);
+  first_load = true;
+  open_threads = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();
-  list_init(&open_execs);
-  first_load = true;
-  open_threads = 0;
-  list_init(&all_process);
+  initial_thread->tid = allocate_tid ();  
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
