@@ -335,7 +335,25 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  struct thread* cur_thread = thread_current();
+  cur_thread->priority = new_priority;
+  if (cur_thread->eff_priority < new_priority)
+    thread_set_eff_priority(new_priority);
+}
+
+/* sets the current thread's effective priority to new_eff_priority and yields if needed*/
+void thread_set_eff_priority(int new_eff_priority)
+{
+  struct thread* cur_thread = thread_current();
+
+  enum intr_level old_level;
+  old_level = intr_disable();
+
+  cur_thread->eff_priority = new_eff_priority;
+  if (new_eff_priority < cur_thread->eff_priority)
+    thread_yield();
+
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -462,6 +480,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+  t->eff_priority = priority;
+  t->waiting_lock = NULL;
+  list_init(&t->acquired_locks);
+  
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -493,7 +516,24 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    {
+      struct list_elem* cur;
+      struct thread* highest_eff_p_thread = NULL;
+      int max_eff_priority = -1;
+      for (cur = list_begin(&ready_list); cur != list_end(&ready_list); cur = list_next(cur))
+      {
+        struct thread* cur_thread = list_entry(cur, struct thread, elem);
+        if (cur_thread->eff_priority > max_eff_priority)
+        {
+          max_eff_priority = cur_thread->eff_priority;
+          highest_eff_p_thread = cur_thread;
+        }
+      }
+
+      list_remove(&highest_eff_p_thread->elem);
+      return highest_eff_p_thread;
+      // list_entry (list_pop_front (&ready_list), struct thread, elem);
+    }
 }
 
 /* Completes a thread switch by activating the new thread's page
