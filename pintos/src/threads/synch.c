@@ -211,14 +211,47 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+
   enum intr_level old_level;
   old_level = intr_disable();
   
-  //donation
+  struct thread* cur_thread = thread_current();
 
+  bool success = lock_try_acquire(lock);
+  if (success)
+  {
+    lock->holder = cur_thread;
+    list_push_back(&cur_thread->acquired_locks, &lock->elem);
+    intr_set_level(old_level);
+    return;
+  }
+  
+  // if we should wait ...
+
+  cur_thread->waiting_lock = lock;
+  struct thread* holder = lock->holder;
+  int eff_priority = cur_thread->eff_priority;
+  
+  // donating ...
+  while (holder)
+  {
+    if (holder->eff_priority < eff_priority)
+    {
+      holder->eff_priority = eff_priority;
+    }
+    else
+      eff_priority = holder->eff_priority;
+    
+    holder = holder->waiting_lock->holder;
+  }
   intr_set_level(old_level);
+  
   sema_down (&lock->semaphore);
+
+  old_level = intr_disable();
   lock->holder = thread_current ();
+  list_push_back(&thread_current()->acquired_locks, &lock->elem);
+  intr_set_level(old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -252,7 +285,34 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  lock->holder = NULL;
+  enum intr_level old_level;
+  old_level = intr_disable();
+
+  lock->holder = NULL;  
+
+  struct thread* cur_thread = thread_current();
+  int priority = cur_thread->priority;
+
+  struct list_elem* lock_elem;
+  for (lock_elem = list_begin(&cur_thread->acquired_locks);
+   lock_elem != list_end(&cur_thread->acquired_locks);
+   lock_elem = list_next(lock_elem))
+   {
+     struct lock* lck = list_entry(lock_elem, struct lock, elem);
+     struct list* waiters = &lck->semaphore.waiters;
+
+     struct list_elem* w_elem;
+     for (w_elem = list_begin(waiters); w_elem != list_end(waiters); w_elem = list_next(w_elem))
+     {
+       struct thread* t = list_entry(w_elem, struct thread, elem);
+       if (t->eff_priority > priority)
+        priority = t->eff_priority;
+     }
+   }
+
+  thread_set_eff_priority(priority);
+
+  intr_set_level(old_level);
   sema_up (&lock->semaphore);
 }
 
