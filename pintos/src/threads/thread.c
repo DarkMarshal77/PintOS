@@ -340,8 +340,12 @@ void
 thread_set_priority (int new_priority)
 {
   struct thread* cur_thread = thread_current();
+  bool is_donated = cur_thread->eff_priority > cur_thread->priority;
+  
   cur_thread->priority = new_priority;
-  if (cur_thread->eff_priority > new_priority)
+
+  // checking to see if eff_priority has been donated to 
+  if (!is_donated)
     thread_set_eff_priority(new_priority);
 }
 
