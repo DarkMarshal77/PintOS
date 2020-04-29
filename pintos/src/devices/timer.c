@@ -100,7 +100,6 @@ timer_sleep (int64_t ticks)
   if (next_thread_unblock_time > wakeup_time)
     next_thread_unblock_time = wakeup_time;
 
-
   enum intr_level old_level = intr_disable();
 
   thread_current()->wakeup_time = wakeup_time;
@@ -189,7 +188,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
   while (next_thread_unblock_time <= ticks)
   {
     thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, sleep_elem));
-    next_thread_unblock_time = list_entry(list_front(&sleep_list), struct thread, sleep_elem)->wakeup_time;
+    if (list_empty(&sleep_list))
+      next_thread_unblock_time = INT64_MAX;
+    else
+      next_thread_unblock_time = list_entry(list_front(&sleep_list), struct thread, sleep_elem)->wakeup_time;
   }
 
   thread_tick ();
