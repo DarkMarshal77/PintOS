@@ -113,6 +113,7 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+  bool unblocked = false;
   if (!list_empty (&sema->waiters))
   {
     struct list_elem* e;
@@ -130,9 +131,12 @@ sema_up (struct semaphore *sema)
     }
     list_remove(&max_eff_p_thread->elem);
     thread_unblock(max_eff_p_thread);
+    unblocked = true;
     //thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
   }
   sema->value++;
+  if (unblocked)
+    thread_yield();
   intr_set_level (old_level);
 }
 
@@ -316,9 +320,10 @@ lock_release (struct lock *lock)
      }
    }
 
-  sema_up (&lock->semaphore);
+  
+  cur_thread->eff_priority = priority;
   barrier();
-  thread_set_eff_priority(priority);
+  sema_up (&lock->semaphore);
 
   intr_set_level(old_level);
 }
