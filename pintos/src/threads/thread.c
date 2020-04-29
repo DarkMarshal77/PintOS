@@ -201,6 +201,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  if (priority > thread_current()->eff_priority)
+    thread_yield();
+
   return tid;
 }
 
@@ -239,6 +242,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
+
   intr_set_level (old_level);
 }
 
@@ -337,7 +341,7 @@ thread_set_priority (int new_priority)
 {
   struct thread* cur_thread = thread_current();
   cur_thread->priority = new_priority;
-  if (cur_thread->eff_priority < new_priority)
+  if (cur_thread->eff_priority > new_priority)
     thread_set_eff_priority(new_priority);
 }
 
@@ -349,10 +353,16 @@ void thread_set_eff_priority(int new_eff_priority)
   enum intr_level old_level;
   old_level = intr_disable();
 
-  cur_thread->eff_priority = new_eff_priority;
-  if (new_eff_priority < cur_thread->eff_priority)
+  if (cur_thread->eff_priority > new_eff_priority)
+  {
+    cur_thread->eff_priority = new_eff_priority;
     thread_yield();
-
+  }
+  else
+  {
+    cur_thread->eff_priority = new_eff_priority;
+  }
+  
   intr_set_level(old_level);
 }
 
@@ -360,7 +370,7 @@ void thread_set_eff_priority(int new_eff_priority)
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return thread_current ()->eff_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */

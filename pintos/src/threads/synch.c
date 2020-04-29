@@ -128,6 +128,7 @@ sema_up (struct semaphore *sema)
         max_eff_p_thread = t;
       }
     }
+    list_remove(&max_eff_p_thread->elem);
     thread_unblock(max_eff_p_thread);
     //thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
   }
@@ -242,6 +243,8 @@ lock_acquire (struct lock *lock)
     else
       eff_priority = holder->eff_priority;
     
+    if (!holder->waiting_lock)
+      break;
     holder = holder->waiting_lock->holder;
   }
   intr_set_level(old_level);
@@ -249,8 +252,10 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
 
   old_level = intr_disable();
-  lock->holder = thread_current ();
-  list_push_back(&thread_current()->acquired_locks, &lock->elem);
+  cur_thread = thread_current(); 
+  lock->holder = cur_thread;
+  cur_thread->waiting_lock = NULL;
+  list_push_back(&cur_thread->acquired_locks, &lock->elem);
   intr_set_level(old_level);
 }
 
@@ -292,6 +297,7 @@ lock_release (struct lock *lock)
 
   struct thread* cur_thread = thread_current();
   int priority = cur_thread->priority;
+  list_remove(&lock->elem);
 
   struct list_elem* lock_elem;
   for (lock_elem = list_begin(&cur_thread->acquired_locks);
@@ -310,10 +316,11 @@ lock_release (struct lock *lock)
      }
    }
 
+  sema_up (&lock->semaphore);
+  barrier();
   thread_set_eff_priority(priority);
 
   intr_set_level(old_level);
-  sema_up (&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false
