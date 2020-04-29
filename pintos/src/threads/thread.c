@@ -71,6 +71,16 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+/* Returns true if wakeup_time A is less than wakeup_time B, false otherwise. */
+bool
+thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED)
+{
+  struct thread *a = list_entry(a_, struct thread, sleep_elem);
+  struct thread *b = list_entry(b_, struct thread, sleep_elem);
+
+  return a->wakeup_time < b->wakeup_time;
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
