@@ -114,6 +114,7 @@ struct thread
 extern bool thread_mlfqs;
 
 bool thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED);
+bool thread_priority_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED);
 
 void thread_init (void);
 void thread_start (void);
