@@ -251,7 +251,6 @@ lock_acquire (struct lock *lock)
       break;
     holder = holder->waiting_lock->holder;
   }
-  intr_set_level(old_level);
   
   sema_down (&lock->semaphore);
 
@@ -344,6 +343,7 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
+    struct thread* waiter_thread;       /* Thread that downs this semaphore*/
   };
 
 /* Initializes condition variable COND.  A condition variable
@@ -387,11 +387,20 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level;
+  old_level = intr_disable();
+
   sema_init (&waiter.semaphore, 0);
   list_push_back (&cond->waiters, &waiter.elem);
+  waiter.waiter_thread = thread_current();
+
   lock_release (lock);
+  barrier();
   sema_down (&waiter.semaphore);
+  barrier();
   lock_acquire (lock);
+
+  intr_set_level(old_level);
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
@@ -409,9 +418,29 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level;
+  old_level = intr_disable();
+
   if (!list_empty (&cond->waiters))
-    sema_up (&list_entry (list_pop_front (&cond->waiters),
-                          struct semaphore_elem, elem)->semaphore);
+  {
+    struct list_elem* e;
+    struct semaphore_elem* highest_p_sema_e;
+    int highest_p = -1;
+    for (e = list_begin(&cond->waiters); e != list_end(&cond->waiters); e = list_next(e))
+    {
+      struct semaphore_elem* sema_elem = list_entry(e, struct semaphore_elem, elem);
+      if (sema_elem->waiter_thread->eff_priority > highest_p)
+      {
+        highest_p = sema_elem->waiter_thread->eff_priority;
+        highest_p_sema_e = sema_elem;
+      }
+    }
+    list_remove(&highest_p_sema_e->elem);
+    barrier();
+    sema_up (&highest_p_sema_e->semaphore);
+  }
+
+  intr_set_level(old_level);
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -426,6 +455,10 @@ cond_broadcast (struct condition *cond, struct lock *lock)
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
 
+  enum intr_level old_level;
+  old_level = intr_disable();
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
+  
+  intr_set_level(old_level);
 }
