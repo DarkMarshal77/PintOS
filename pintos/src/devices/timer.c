@@ -96,6 +96,9 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks)
 {
+  if (ticks <= 0)
+    return;
+
   int64_t wakeup_time = timer_ticks() + ticks;
   if (next_thread_unblock_time > wakeup_time)
     next_thread_unblock_time = wakeup_time;
