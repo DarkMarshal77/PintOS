@@ -188,13 +188,16 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
 
-  while (next_thread_unblock_time <= ticks)
+  if (!list_empty(&sleep_list))
   {
-    thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
-    if (list_empty(&sleep_list))
-      next_thread_unblock_time = INT64_MAX;
-    else
-      next_thread_unblock_time = list_entry(list_front(&sleep_list), struct thread, elem)->wakeup_time;
+    while (next_thread_unblock_time <= ticks)
+    {
+      thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
+      if (list_empty(&sleep_list))
+        next_thread_unblock_time = INT64_MAX;
+      else
+        next_thread_unblock_time = list_entry(list_front(&sleep_list), struct thread, elem)->wakeup_time;
+    }
   }
 
   thread_tick ();
