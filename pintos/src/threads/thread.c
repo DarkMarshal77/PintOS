@@ -81,16 +81,6 @@ thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux U
   return a->wakeup_time < b->wakeup_time;
 }
 
-/* Returns true if priority A is less than priority B, false otherwise. */
-bool
-thread_priority_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED)
-{
-  struct thread *a = list_entry(a_, struct thread, elem);
-  struct thread *b = list_entry(b_, struct thread, elem);
-
-  return a->priority < b->priority;
-}
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -257,7 +247,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, thread_priority_less, NULL);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -328,7 +318,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_insert_ordered (&ready_list, &cur->elem, thread_priority_less, NULL);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -513,7 +503,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_back (&ready_list), struct thread, elem);
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
