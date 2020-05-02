@@ -92,8 +92,11 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    /* Shared between thread.c and synch.c. */
+    /* Shared between thread.c and synch.c and timer.c. */
     struct list_elem elem;              /* List element. */
+
+    /* thread wake up tick */
+    int64_t wakeup_time;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -102,7 +105,7 @@ struct thread
 
    /* Thread's Effective Priority */
    int eff_priority;
-   
+
    /* Thread's Waiting Lock*/
    struct lock *waiting_lock;
 
@@ -118,6 +121,8 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
+bool thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED);
 
 void thread_init (void);
 void thread_start (void);

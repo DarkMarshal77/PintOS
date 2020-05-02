@@ -71,6 +71,16 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+/* Returns true if wakeup_time A is less than wakeup_time B, false otherwise. */
+bool
+thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED)
+{
+  struct thread *a = list_entry(a_, struct thread, elem);
+  struct thread *b = list_entry(b_, struct thread, elem);
+
+  return a->wakeup_time < b->wakeup_time;
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -341,10 +351,10 @@ thread_set_priority (int new_priority)
 {
   struct thread* cur_thread = thread_current();
   bool is_donated = cur_thread->eff_priority > cur_thread->priority;
-  
+
   cur_thread->priority = new_priority;
 
-  // checking to see if eff_priority has been donated to 
+  // checking to see if eff_priority has been donated to
   if (!is_donated)
     thread_set_eff_priority(new_priority);
 }
@@ -366,7 +376,7 @@ void thread_set_eff_priority(int new_eff_priority)
   {
     cur_thread->eff_priority = new_eff_priority;
   }
-  
+
   intr_set_level(old_level);
 }
 
@@ -498,7 +508,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->eff_priority = priority;
   t->waiting_lock = NULL;
   list_init(&t->acquired_locks);
-  
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

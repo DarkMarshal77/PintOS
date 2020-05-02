@@ -20,6 +20,12 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
+/* List of sleeping threads. */
+static struct list sleep_list;
+
+/* Min of wakeup time of sleeping threads. */
+static int64_t next_thread_unblock_time;
+
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -37,6 +43,8 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleep_list);
+  next_thread_unblock_time = INT64_MAX;
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,16 +92,24 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+/* Sleeps for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks)
 {
-  int64_t start = timer_ticks ();
+  if (ticks <= 0)
+    return;
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks)
-    thread_yield ();
+  int64_t wakeup_time = timer_ticks() + ticks;
+  if (next_thread_unblock_time > wakeup_time)
+    next_thread_unblock_time = wakeup_time;
+
+  enum intr_level old_level = intr_disable();
+
+  thread_current()->wakeup_time = wakeup_time;
+  list_insert_ordered (&sleep_list, &thread_current()->elem, thread_wakeup_time_less, NULL);
+  thread_block();
+
+  intr_set_level(old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -171,6 +187,16 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  while (next_thread_unblock_time <= ticks)
+  {
+    thread_unblock(list_entry(list_pop_front(&sleep_list), struct thread, elem));
+    if (list_empty(&sleep_list))
+      next_thread_unblock_time = INT64_MAX;
+    else
+      next_thread_unblock_time = list_entry(list_front(&sleep_list), struct thread, elem)->wakeup_time;
+  }
+
   thread_tick ();
 }
 
