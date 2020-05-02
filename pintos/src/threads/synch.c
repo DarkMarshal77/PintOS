@@ -132,12 +132,12 @@ sema_up (struct semaphore *sema)
     list_remove(&max_eff_p_thread->elem);
     thread_unblock(max_eff_p_thread);
     unblocked = true;
-    //thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
   }
   sema->value++;
+  intr_set_level (old_level);
+
   if (unblocked)
     thread_yield();
-  intr_set_level (old_level);
 }
 
 static void sema_test_helper (void *sema_);
@@ -219,7 +219,7 @@ lock_acquire (struct lock *lock)
 
   enum intr_level old_level;
   old_level = intr_disable();
-  
+
   struct thread* cur_thread = thread_current();
 
   bool success = lock_try_acquire(lock);
@@ -230,32 +230,30 @@ lock_acquire (struct lock *lock)
     intr_set_level(old_level);
     return;
   }
-  
+
   // if we should wait ...
 
   cur_thread->waiting_lock = lock;
   struct thread* holder = lock->holder;
   int eff_priority = cur_thread->eff_priority;
-  
+
   // donating ...
   while (holder)
   {
     if (holder->eff_priority < eff_priority)
-    {
       holder->eff_priority = eff_priority;
-    }
     else
       eff_priority = holder->eff_priority;
-    
+
     if (!holder->waiting_lock)
       break;
     holder = holder->waiting_lock->holder;
   }
-  
+
   sema_down (&lock->semaphore);
 
   old_level = intr_disable();
-  cur_thread = thread_current(); 
+  cur_thread = thread_current();
   lock->holder = cur_thread;
   cur_thread->waiting_lock = NULL;
   list_push_back(&cur_thread->acquired_locks, &lock->elem);
@@ -296,7 +294,7 @@ lock_release (struct lock *lock)
   enum intr_level old_level;
   old_level = intr_disable();
 
-  lock->holder = NULL;  
+  lock->holder = NULL;
 
   struct thread* cur_thread = thread_current();
   int priority = cur_thread->priority;
@@ -304,22 +302,22 @@ lock_release (struct lock *lock)
 
   struct list_elem* lock_elem;
   for (lock_elem = list_begin(&cur_thread->acquired_locks);
-   lock_elem != list_end(&cur_thread->acquired_locks);
-   lock_elem = list_next(lock_elem))
-   {
-     struct lock* lck = list_entry(lock_elem, struct lock, elem);
-     struct list* waiters = &lck->semaphore.waiters;
+       lock_elem != list_end(&cur_thread->acquired_locks);
+       lock_elem = list_next(lock_elem))
+  {
+    struct lock* lck = list_entry(lock_elem, struct lock, elem);
+    struct list* waiters = &lck->semaphore.waiters;
 
-     struct list_elem* w_elem;
-     for (w_elem = list_begin(waiters); w_elem != list_end(waiters); w_elem = list_next(w_elem))
-     {
-       struct thread* t = list_entry(w_elem, struct thread, elem);
-       if (t->eff_priority > priority)
+    struct list_elem* w_elem;
+    for (w_elem = list_begin(waiters); w_elem != list_end(waiters); w_elem = list_next(w_elem))
+    {
+      struct thread* t = list_entry(w_elem, struct thread, elem);
+      if (t->eff_priority > priority)
         priority = t->eff_priority;
-     }
-   }
+    }
+  }
 
-  
+
   cur_thread->eff_priority = priority;
   barrier();
   sema_up (&lock->semaphore);
@@ -343,7 +341,7 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
-    struct thread* waiter_thread;       /* Thread that downs this semaphore*/
+    struct thread* waiter_thread;       /* Thread that downs this semaphore. */
   };
 
 /* Initializes condition variable COND.  A condition variable
@@ -459,6 +457,6 @@ cond_broadcast (struct condition *cond, struct lock *lock)
   old_level = intr_disable();
   while (!list_empty (&cond->waiters))
     cond_signal (cond, lock);
-  
+
   intr_set_level(old_level);
 }

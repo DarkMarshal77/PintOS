@@ -354,12 +354,12 @@ thread_set_priority (int new_priority)
 
   cur_thread->priority = new_priority;
 
-  // checking to see if eff_priority has been donated to
+  /* Checking to see if eff_priority has been donated to. */
   if (!is_donated)
     thread_set_eff_priority(new_priority);
 }
 
-/* sets the current thread's effective priority to new_eff_priority and yields if needed*/
+/* sets the current thread's effective priority to new_eff_priority and yields if needed. */
 void thread_set_eff_priority(int new_eff_priority)
 {
   struct thread* cur_thread = thread_current();
@@ -540,24 +540,23 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
+  {
+    struct list_elem* cur;
+    struct thread* highest_eff_p_thread = NULL;
+    int max_eff_priority = -1;
+    for (cur = list_begin(&ready_list); cur != list_end(&ready_list); cur = list_next(cur))
     {
-      struct list_elem* cur;
-      struct thread* highest_eff_p_thread = NULL;
-      int max_eff_priority = -1;
-      for (cur = list_begin(&ready_list); cur != list_end(&ready_list); cur = list_next(cur))
+      struct thread* cur_thread = list_entry(cur, struct thread, elem);
+      if (cur_thread->eff_priority > max_eff_priority)
       {
-        struct thread* cur_thread = list_entry(cur, struct thread, elem);
-        if (cur_thread->eff_priority > max_eff_priority)
-        {
-          max_eff_priority = cur_thread->eff_priority;
-          highest_eff_p_thread = cur_thread;
-        }
+        max_eff_priority = cur_thread->eff_priority;
+        highest_eff_p_thread = cur_thread;
       }
-
-      list_remove(&highest_eff_p_thread->elem);
-      return highest_eff_p_thread;
-      // list_entry (list_pop_front (&ready_list), struct thread, elem);
     }
+
+    list_remove(&highest_eff_p_thread->elem);
+    return highest_eff_p_thread;
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
