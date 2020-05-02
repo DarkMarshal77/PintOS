@@ -92,12 +92,11 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    /* Shared between thread.c and synch.c. */
+    /* Shared between thread.c and synch.c and timer.c. */
     struct list_elem elem;              /* List element. */
 
-    /* Shared between thread.c and timer.c. */
-    struct list_elem sleep_elem;        /* List element for sleep list. */
-    int64_t wakeup_time;                /* thread wake up tick */
+    /* thread wake up tick */
+    int64_t wakeup_time;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -106,7 +105,7 @@ struct thread
 
    /* Thread's Effective Priority */
    int eff_priority;
-   
+
    /* Thread's Waiting Lock*/
    struct lock *waiting_lock;
 
