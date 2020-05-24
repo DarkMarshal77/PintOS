@@ -7,13 +7,13 @@
 > نام و آدرس پست الکترونیکی اعضای گروه را در این قسمت بنویسید.
 
 
-نام و نام خانوادگی <example@example.com>
+رضا یاربخش <ryarbakhsh@gmail.com>
 
-نام و نام خانوادگی <example@example.com> 
+روزبه مشکین نژاد <rouzyd@gmail.com> 
 
-نام و نام خانوادگی <example@example.com> 
+علیرضا طباطبائیان <tabanavid77@gmail.com> 
 
-نام و نام خانوادگی <example@example.com> 
+علی بهجتی <bahjatia@gmail.com> 
 
 مقدمات
 ----------
@@ -30,42 +30,117 @@
 >در قسمت آشنایی با pintos در مستند تمرین گروهی ۱۹ سوال مطرح شده است. پاسخ آن ها را در زیر بنویسید.
 
 ۱.
+0xc0000008
 
 ۲.
+0x8048757
 
-۳.
-
-۴.
+۳.	
+`_start`	
+`mov 0x24(%esp),%eax`	
+۴.	
+`sub $0x1c,%esp`	
+	گرفتن پشته مورد نیاز	
+`mov 0x24(%esp),%eax    +    mov %eax,0x4(%esp)`	
+	قرار دادن argv در پشته برای تابع main	
+`mov 0x20(%esp),%eax    +    mov %eax,(%esp)`	
+	قرار دادن argc در پشته برای تابع main	
+`call 80480a0 <main>`	
+	صدا زدن تابع main	
+`mov %eax,(%esp)`	
+	قرار دادن مقدار بازگشتی main در پشته برای تابع exit	
+`call 804a2bc <exit>`	
+	صدا زدن تابع exit
 
 ۵.
+به این دلیل که تابع _start انتظار داشت که آرگومان‌های ورودی توسط صداکننده در پشته قرار گرفته‌باشند ولی این اتفاق نیفتاده‌است و برنامه کاربر درحال دسترسی به حافظه سیستم‌عامل است.
 
 ۶.
-
+دو ریسه main و idle موجودند که ریسه main در حال اجرای تابع میباشد.
+```
+dumplist #0: 0xc000e000 {tid = 1, status = THREAD_RUNNING, name = "main", '\000' <repeats 11 times>, stack = 0xc000edec <incomplete sequence \357>, priority = 31, allelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}
+dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allelem = {prev = 0xc000e020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067} 
+```
 ۷.
-
+```
+#0  process_execute (file_name=file_name@entry=0xc0007d50 "do-nothing") at ../../userprog/process.c:32 
+process_wait (process_execute (task));
+#1  0xc0020268 in run_task (argv=0xc00357cc <argv+12>) at ../../threads/init.c:288
+a->function (argv);
+#2  0xc0020921 in run_actions (argv=0xc00357cc <argv+12>) at ../../threads/init.c:340
+run_actions (argv);
+#3  main () at ../../threads/init.c:133
+```
 ۸.
-
+```
+dumplist #0: 0xc000e000 {tid = 1, status = THREAD_BLOCKED, name = "main", '\000' <repeats 11 times>, stack = 0xc000eeac "\001", priority = 31, allelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0037314 <temporary+4>, next = 0xc003731c <temporary+12>}, pagedir = 0x0, magic = 3446325067}
+dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allelem = {prev = 0xc000e020, next = 0xc010a020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}
+dumplist #2: 0xc010a000 {tid = 3, status = THREAD_RUNNING, name = "do-nothing\000\000\000\000\000", stack = 0xc010afd4 "", priority = 31, allelem = {prev = 0xc0104020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 3446325067}   
+```
 ۹.
+```
+thread.c:thread_create:
+/* Initialize thread. */
+init_thread (t, name, priority);
+tid = t->tid = allocate_tid ();
 
+/* Stack frame for kernel_thread(). */
+kf = alloc_frame (t, sizeof *kf);
+kf->eip = NULL;
+kf->function = function;
+kf->aux = aux;
+```
 ۱۰.
-
+```
+{edi = 0x0, esi = 0x0, ebp = 0x0, esp_dummy = 0x0, ebx = 0x0, edx = 0x0, ecx = 0x0, eax = 0x0, gs = 0x23, fs = 0x23, es = 0x23, ds = 0x23, vec_no = 0x0, error_code = 0x0, frame_pointer = 0x0, eip = 0x8048754, cs = 0x1b, eflags = 0x202, esp = 0xc0000000, ss = 0x23} 
+```
 ۱۱.
+زیرا با پریدن به intr_exit ما در واقع بازگشت از یک وقفه را شبیه سازی کردیم که با اتمام آن پردازه ما دوباره به حالت userspace باز میگردد.
 
 ۱۲.
+تفاوتی ندارد.
 
 ۱۳.
+```
+#0  _start (argc=<unavailable>, argv=<unavailable>) at ../../lib/user/entry.c:9  
+```
+۱۴ و ۱۵.
 
-۱۴.
+Because stack pointer is pointing to topmost part we have some values in the stack for start function (./lib/user/entry.c) which will be copied upon calling main function. (12 bytes: 2x4 B for arguments and 1x4 B for return address) In the doc also states that:
 
-۱۵.
+> The x86 ABI requires that %esp be aligned to a 16-byte boundary at the time the call instruction is executed (e.g., at the point where all arguments are pushed to the stack), so make sure to leave enough empty space on the stack so that this is achieved.
+
+It is same as do-stack-align test because before call it should be divisible by 16 and after call we decrease esp by 4 (to push return address) so esp % 16 should be 12.
+
+Because of that in stack setup function we decrease value of esp by 20 to have this alignment correctly. We should decrease by 20 because calling main in start decreases esp by 28 and 16 should divide x + 28 and x >= 12. So x equals to 20. 
 
 ۱۶.
 
+`0xbfffffa8:     0x00000001      0x000000a2`
+
 ۱۷.
+
+The first value (argv[0]) is systemcall id (as in syscall-nr.h) and second value is 162 which is the return value. These are the same as 16 which were two arguments put for the systemcall interrupt.
 
 ۱۸.
 
+sema_down is in process wait (and it was init in process execute). It's basically increasing value of semaphore to wake up threads (if any) waiting to do sema_down. (they're blocked til semaphore value become positive)
+
 ۱۹.
+
+This is the original thread that created new thread for the program. (Recall problem 8). Only idle is available since the new thread ended before. name "main" and address 0xc000e000.
+```
+(gdb) info threads
+  Id   Target Id         Frame
+* 1    Thread <main>     process_wait (child_tid=3) at ../../userprog/process.c:96
+(gdb) dumplist &all_list thread allelem
+pintos-debug: dumplist #0: 0xc000e000 {tid = 1, status = THREAD_RUNNING, name = "main", '\000' <repeats 11 times>, stack = 0xc000eeac "\001", priority = 31, a
+llelem = {prev = 0xc0035910 <all_list>, next = 0xc0104020}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic =
+3446325067}
+pintos-debug: dumplist #1: 0xc0104000 {tid = 2, status = THREAD_BLOCKED, name = "idle", '\000' <repeats 11 times>, stack = 0xc0104f34 "", priority = 0, allele
+m = {prev = 0xc000e020, next = 0xc0035918 <all_list+8>}, elem = {prev = 0xc0035920 <ready_list>, next = 0xc0035928 <ready_list+8>}, pagedir = 0x0, magic = 344
+6325067}
+```
 
 
 پاس‌دادن آرگومان
@@ -78,6 +153,14 @@
 > یا ایستا، `typedef` ها یا `enum` هایی که ایجاد کرده‌اید یا تغییر داده‌اید را بنویسید و
 > دلیل هر کدام را در حداکثر ۲۵ کلمه توضیح دهید.
 
+در این سوال ما تابع `process.c:setup_stack` و `process.c:load` را تغییر میدهیم و داده ساختار زیر را برای نگهداری آرگومانها استفاده میکنیم.
+
+```
+struct arguments {
+  int argc;
+  char *argv[MAX_ARGS];
+};
+```
 
 الگوریتم‌ها
 ------------
@@ -86,16 +169,32 @@
 > `argv[]` را به ترتیب درست در پشته قرار داده‌اید؟ و چگونه از سرریز پشته
 > جلوگیری کرده‌اید؟
 
+ابتدا در تابع `load` با استفاده از `strtok_r()` آرگومان ها را به دست آورده و داده ساختار `arguments` را متناظر با آن پر میکنیم. (`argc` تعداد آرگومانها و  `argv` آرگومانها به جز نام برنامه میباشد.)
+سپس آن را به تابع `setup_stack` میدهیم. این تابع به ترتیب زیر قرار میدهیم (طبق بخش 4.1.6)
+
+PHYS_BASE, آرگومانها به ترتیب عکس, word-align, 4 بایت صفر , اشاره گر به آرگومان ها به ترتیب عکس , اشاره گر به اشاره گر اولین آرگومان, argc و return (null)
+
+برای چلوگیری از سرریز کار خاصی انجام نمیدهیم و آن را در صورت رخ دادن به صورت pagefault بررسی میکنیم و برنامه را با کد -1 متوقف میکنیم زیرا که این نیز در واقع همان pagefault میباشد.
+
 
 منطق طراحی
 -----------------
 
 > چرا Pintos به‌جای تابع‌ `strtok()` تابع‌ `strtok_r()` را پیاده‌سازی کرده‌است؟
 
+`strtok_r()` یک `save_ptr` را میگیرد و از آن برای ذخیره سازی مکان فعلی استفاده میکند. بنابراین بر خلاف `strtok` این تابع thread_safe میباشد و در صورت استفاده همزمان چند ریسه از آن به مشکل نمیخوریم.
 
 > در Pintos عمل جدا کردن نام فایل از آرگومان‌ها، در داخل کرنل انجام می‌شود. در
 > سیستم عامل‌های برپایه‌ی Unix، این عمل توسط shell انجام می‌شود. حداقل دو
 > مورد از برتری‌های رویکرد Unix را توضیح دهید.
+
+زمان سپری شده درون کرنل را کم میکند.
+
+میتواند شل چک کند که فایل اجرایی وجود داشته باشد قبل از این که آن را به کرنل بدهد.
+
+ورودی بد توسط شل امن تر میتواند پردازش شود. مثلا یک ورودی طولانی ممکن است کار پردازش آن را توسط کرنل سخت کند اما در بدترین حالت شل crash میکند.
+
+شل میتواند پیش پردازش پیشرفته تری انجام دهد و امکان وارد کردن همزمان چند دستور را فراهم سازد.
 
 فراخوانی‌های سیستمی
 ================
@@ -106,10 +205,70 @@
 > در این قسمت تعریف هر یک از `struct` ها، اعضای `struct` ها، متغیرهای سراسری
 > یا ایستا، `typedef` ها یا `enum` هایی که ای.جاد کرده‌اید یا تغییر داده‌اید را بنویسید و
 > دلیل هر کدام را در حداکثر ۲۵ کلمه توضیح دهید.
+> برای system callهای مربوط به process، در فایل process.h داده ساختار زیر را تعریف می کنیم:
+
+```
+struct process_d {
+  tid_t tid;
+  struct semaphore loaded;
+  struct semaphore exited;
+  int exit_status; //default is -1
+}
+```
+
+> در فایل thread.h به struct thread فیلدهای زیر را اضافه می کنیم:
+```
+struct thread {
+  ...
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    struct process_d* process_d;
+    struct list_elem elem;
+    struct list children;
+    ...
+#endif
+  ...
+}
+```
+‌
+> دلیل تعریف struct اول ذخیره اطلاعات مورد نیاز برای exec و wait است. loaded زمانی که thread به طور کامل load می‌شود 1 واحد افزایش می‌یابد در حالی که در exec منتظریم تا loaded را یک واحد کاهش دهیم.
+
+
+> exited زمانی 1 واحد افزایش می‌یابد که کار یک thread تمام شود. در wait منتظر این  
+semaphor می‌مانیم تا افزایش یابد.
+
+
+برای system callهای مربوط به file:
+
+
+در فایل lib/user/syscall.c:
+ ```
+struct lock file_lock; 
+```
+هر thread قبل از انجام عملیات مربوط به system call و فایل، ابتدا این lock را می‌گیرد، و بعد در انتهای عملیات، این lock را آزاد می‌کند.
+
+در فایل lib/user/syscall.c:
+```
+struct filemap{
+	int fd;
+	struct file *file_instance;
+	const char *file_name;
+  struct list_elem elem;
+  int owner_cnt;
+}
+```
+
+```
+struct list files;
+```
+> این داده ساختار برای نگهداری ارتباط بین file descriptor، نام فایل و struct file است. همچنین این داده ساختار به شکل لیست در نظر گرفته شده تا راحت‌تر بتوان fileها را در صورت بروز مشکل برای thread آن‌ها مدیریت کرد. هر threadای که از یک fd استفاده کند، owner_cnt یک واحد افزایش می‌یابد و زمانی که کار thread تمام می‌شود، owner_cnt یک واحد کاهش می‌یابد. این افزایش و کاهش در فایل lib/usr/syscall.c پیاده‌سازی می‌شود.
+
 
 > توضیح دهید که توصیف‌کننده‌های فایل چگونه به فایل‌های باز مربوط می‌شوند. آیا این 
 >توصیف‌کننده‌ها در کل سیستم‌عامل به‌طور یکتا مشخص می‌شوند یا فقط برای هر پردازه 
 >یکتا هستند؟
+
+با استفاده از filemap، برای هر file descriptor، نام فایل و instance متناظر آن فایل ذخیره شده است. در کل سیستم عامل، file descriptorها یکتا هستند.
 
 
 الگوریتم‌ها
@@ -117,14 +276,25 @@
 
 > توضیح دهید خواندن و نوشتن داده‌های کاربر از داخل هسته، در کد شما چگونه انجام شده است.
 
+پاسخ: برای خواندن، ابتدا lock مربوط به کار با فایل گرفته می‌شود و بررسی می‌شود که آدرس buffer و آدرس file descriptor معتبر باشند. همچنین بررسی می‌شود که file descriptor داده شده اجازه‌ی خواندن را بدهد (مثلا STDIN نباشد.) بعد با اجرای system call، buffer و file descriptor در stack ذخیره می‌شود. سپس با یک interrupt کنترل به kernel داده می‌شود که با خواندن آرگومان‌های روی  stack، عملیات خواندن را انجام می‌دهد و نتیجه را روی buffer می‌ریزد. در انتها کنترل به user برمی‌گردد و lock آزاد می‌شود. 
+
+برای نوشتن، بعد از گرفتن lock و بررسی‌های لازم مانند خواندن، آدرس buffer و آدرس فایل روی stack ذخیره می‌شود و بعد با یک interrupt کنترل به سیستم عامل داده می‌شود. kernel محتویات بافر را روی فایل مورد نظر می‌نویسد. خروجی این دو عملیات مطابق شرح گفته شده در doc پیاده‌سازی می‌شود.
+
+
 > فرض کنید یک فراخوانی سیستمی باعث شود یک صفحه‌ی کامل (۴۰۹۶ بایت) از فضای
 > کاربر در فضای هسته کپی شود. بیشترین و کمترین تعداد بررسی‌‌های جدول صفحات
 > (page table) چقدر است؟ (تعداد دفعاتی که `pagedir_get_page()` صدا زده می‌شود.) در‌
 > یک فراخوانی سیستمی که فقط ۲ بایت کپی می‌شود چطور؟ آیا این عددها می‌توانند بهبود 
 > یابند؟ چقدر؟
 
+
+پاسخ: کمترین تعداد بررسی برابر 1 است. یعنی در اولین صدا زدن تابع pagedeir_get_page() یک آدرس معتبر page head برگردانده شود. بیشترین مقدار برابر 2 است. چون 4096 بایت حداکثر روی 2 page ذخیره می‌شود و ممکن است در نهایت مجبور شویم بخشی را از یک page و باقیمانده را از روی page بعدی بخوانیم. برای 2 بایت با منطقی مشابه کمترین 1 و بیشترین 2 است. با توجه به حداقلی بودن مقادیر گفته شده، به نظر نمی‌رسد امکان بهبود در این اعداد وجود داشته باشد. 
+
 > پیاده‌سازی فراخوانی سیستمی `wait` را توضیح دهید و بگویید چگونه با پایان یافتن پردازه 
 > در ارتباط است.
+
+
+پاسخ: اول در لیست مربوط threadهای فرزند، thread با شماره tid را پیدا می‌کنیم و بعد با استفاده از semaphore با نام exited، منتظر می‌مانیم تا کار پردازه فرزند تمام شود. با اتمام کار فرزند، آن را از لیست فرزندان و threadها حذف می‌کنیم.
 
 
 > هر دستیابی هسته به حافظه‌ی برنامه‌ی کاربر، که آدرس آن را کاربر مشخص کرده است،
@@ -140,6 +310,10 @@
 > موقتی‌ای که تخصیص داده‌اید (قفل‌ها، بافر‌ها و...) مطمئن می‌شوید؟ در تعداد کمی
 > پاراگراف، استراتژی خود را برای مدیریت این مسائل با ذکر مثال بیان کنید.
 
+
+یک تابع به نام clean_up_thread_exception() می‌نوسیم که در صورت بروز مشکل، بافرها و بخش‌هایی از memory که گرفته شده‌اند آزاد کند. همچنین lock مربوط به کار با فایل را هم آزاد می‌کنیم. بعد مشکل پیش آمده را از طریق exit code به system caller اطلاع می‌دهد. همچنین به طور متناوب، لیست files بررسی می‌شود و اگر fdای باز بود در حالی که owner_cnt برابر 0 بود (یعنی هیچ threadای از آن استفاده نمی‌کند.) آن fd بسته می‌شود. 
+
+
 همگام‌سازی
 ---------------
 
@@ -147,6 +321,9 @@
 > در صورتی که بارگذاری فایل اجرایی با خطا مواجه شود باید `-۱` برگرداند. کد شما
 > چگونه از این موضوع اطمینان حاصل می‌کند؟ چگونه وضعیت موفقیت یا شکست
 > در اجرا به ریسه‌ای که `exec` را فراخوانی کرده اطلاع داده می‌شود؟
+
+
+وضعیت در status ذخیره می‌شود. همچنین در exec منتظر یک semaphore می‌مانیم (loaded) که تنها بعد از زمانی که start_process شروع به اجرای thread می‌کند به علاوه 1 می‌شود. همچنین برای اینکه wait کنیم، یک semaphore به نام exited داریم که بعد از پایان thread افزایش می‌یابد. در wait همانطور که قبلا توضیح داده شده، می‌توان منتظر کاهش semaphore متناظر با tid ماند.
 
 
 > پردازه‌ی والد P و پردازه‌ی فرزند C را درنظر بگیرید. هنگامی که P فراخوانی `wait(C)` را 
@@ -157,18 +334,27 @@
 > بدون منتظر ماندن بعد از C خارج شود چطور؟ آیا حالت‌های خاصی وجود دارد؟
 
 
+دو حالت داریم. حالت اول اینکه پردازه والد منتظر پردازه فرزند باشد. در این حالت، با استفاده از semaphore به نام exited در فرزند، می‌توان تشخیص داد که کار فرزند تمام شده یا خیر. اگر فرزند قبل از شروع به wait توسط والد پایان یابد، چون اشاره‌گر به فرزند وجود دارد، semaphore فرزند 1 واحد اضافه شده و توسط والد قابل دسترسی است. پس این semaphore یک واحد کم می‌شود و والد از اتمام فرزند مطلع می‌شود. بعد فرزند از لیست فرزندان والد حذف می‌شود. اگر فرزند بعد از wait والد تمام شود هم والد به سادگی با توجه به مثبت شدن semaphore از پایان یافتن فرزند مطلع می‌شود. حالت دوم زمانی است که والد به طور کلی روی فرزند wait نکند. در این صورت، با اتمام فرزند struct thread مربوط به آن از لیست کلی threadها حذف و بعد در صورت اتمام والد، thread مربوط به والد هم حذف می‌شود. در نتیجه race condition در این حالت نداریم. همچنین اگر والد بدون اینکه روی فرزند wait کند و قبل از اتمام فرزند تمام شود، مشکلی برای فرزند پیش نمی‌آید و هر دو در انتها از لیست threadها حذف می‌شود.
+
+
 منطق طراحی
 -----------------
 
 > به چه دلیل روش دسترسی به حافظه سطح کاربر از داخل هسته را این‌گونه
 > پیاده‌سازی کرده‌اید؟
 
+برای سادگی، هسته تنها با آرگومان‌های موجود در stack کار می‌کند. این آرگومان‌ها در سمت user از نظر معتبر بودن بررسی شده‌اند و احتمالا در پیاده‌سازی برای مدیدیت خطا با مشکل کمتری روبرو خواهیم بود.
 
 > طراحی شما برای توصیف‌کننده‌های فایل چه نقاط قوت و ضعفی دارد؟
+
+توصیف‌کننده‌های فایل در کل سیستم عامل یکتا هستند و با داشتن یک توصیف‌کننده می‌توان به راحتی به فایل و نام فایل مربوط به آن دسترسی داشت. همچنین می‌توان پس از مدتی توصیف‌کننده‌های بلااستفاده را شناسایی و حافظه را خالی کرد. نقطه ضعف اما در شناسایی fdهای بلااستفاده و پیچیدگی مدیریت استفاده چند thread از یک fd یکسان است.
 
 
 > در حالت پیش‌فرض نگاشت `tid` به `pid` یک نگاشت همانی است. اگر این را تغییر
 > داده‌اید، روی‌کرد شما چه نقاط قوتی دارد؟
+
+این رویکرد را برای سادگی طراحی تغییر نداده‌ایم.
+
 
 سوالات افزون بر طراحی
 ===========
@@ -176,17 +362,24 @@
 > (esp) نامعتبر استفاده کرده است بیابید. پاسخ شما باید دقیق بوده و نام تست و
 > چگونگی کارکرد آن را شامل شود.
 
+تست sc-bad-sp
 
+این تست اشاره گر پشته را تقریبا 64 مگابایت پایین تر از قسمت کد قرار میدهد که نامعتبر میباشد و با فراخوانی سیستمی بایستی برنامه با کد -1 متوقف شود.
 > تستی را که هنگام اجرای فراخوانی سیستمی از یک اشاره‌گر پشته‌ی معتبر استفاده
 > کرده ولی اشاره‌گر پشته آنقدر به مرز صفحه نزدیک است که برخی از آرگومان‌های
 > فراخوانی سیستمی در جای نامعتبر مموری قرار گرفته اند مشخص کنید. پاسخ شما
 > باید دقیق بوده و نام تست و چگونگی کارکرد آن را شامل شود.
+
+تست sc-boundary-3
+
+این تست آرگومان فراخوانی سیستمی را به اندازه یک بایت قبل از مرز قرار میدهد. بنابراین اولین بایت در فضای حافظه معتبر میباشد اما سایر بایت ها نامعتبرند. پردازه باید کشته شود.
 
 
 > یک قسمت از خواسته‌های تمرین را که توسط مجموعه تست موجود تست نشده
 > است، نام ببرید. سپس مشخص کنید تستی که این خواسته را پوشش بدهد چگونه
 > باید باشد.
 
+آرگومانها به گونه ای باشند که stackoverflow رخ دهد. برای تست این موضوع میتوانیم یک رشته با سایز بسیار زیاد را به عنوان آرگومان به برنامه بدهیم که سایز آن از سایز استک تجاوز کند. در این صورت پردازه بایستی متوقف شده و سیستم عامل به کار خود ادامه دهد.
 
 سوالات نظرخواهی
 ==============
