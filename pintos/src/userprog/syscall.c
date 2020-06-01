@@ -21,6 +21,7 @@ static char* get_file_name_safe(int fd);
 void sys_exit(int status)
 {
   printf ("%s: exit(%d)\n", &thread_current ()->name, status);
+  thread_current()->inner_process.exit_status = -1;
   thread_exit ();
   NOT_REACHED();
 }
