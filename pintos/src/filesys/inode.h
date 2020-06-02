@@ -39,6 +39,9 @@ struct cache_block {
   char block_data[BLOCK_SECTOR_SIZE];
 };
 
+struct cache_block* fetch_cache_block (struct block *block, block_sector_t sector,
+                                       bool read_from_disk);
+
 void cached_block_read (struct block *block, block_sector_t sector, void *buffer);
 void cached_block_write (struct block *block, block_sector_t sector, const void *buffer);
 
