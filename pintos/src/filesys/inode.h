@@ -2,8 +2,12 @@
 #define FILESYS_INODE_H
 
 #include <stdbool.h>
+#include <list.h>
+#include "threads/synch.h"
 #include "filesys/off_t.h"
 #include "devices/block.h"
+
+#define LRU_CACHE_SIZE 64
 
 struct bitmap;
 
@@ -19,5 +23,25 @@ off_t inode_write_at (struct inode *, const void *, off_t size, off_t offset);
 void inode_deny_write (struct inode *);
 void inode_allow_write (struct inode *);
 off_t inode_length (const struct inode *);
+
+struct list LRU_list;
+struct lock LRU_lock;
+
+struct cache_block {
+  bool is_dirty;
+
+  struct block *block;
+  block_sector_t sector; 
+
+  struct list_elem elem;
+  struct lock cb_lock;
+
+  char block_data[BLOCK_SECTOR_SIZE];
+};
+
+void cached_block_read (struct block *block, block_sector_t sector, void *buffer);
+void cached_block_write (struct block *block, block_sector_t sector, const void *buffer);
+
+void free_all_cache (void);
 
 #endif /* filesys/inode.h */

@@ -62,6 +62,8 @@ void
 inode_init (void)
 {
   list_init (&open_inodes);
+  list_init (&LRU_list);
+  lock_init (&LRU_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -89,14 +91,14 @@ inode_create (block_sector_t sector, off_t length)
       disk_inode->magic = INODE_MAGIC;
       if (free_map_allocate (sectors, &disk_inode->start))
         {
-          block_write (fs_device, sector, disk_inode);
+          cached_block_write (fs_device, sector, disk_inode);
           if (sectors > 0)
             {
               static char zeros[BLOCK_SECTOR_SIZE];
               size_t i;
 
               for (i = 0; i < sectors; i++)
-                block_write (fs_device, disk_inode->start + i, zeros);
+                cached_block_write (fs_device, disk_inode->start + i, zeros);
             }
           success = true;
         }
@@ -137,7 +139,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  cached_block_read (fs_device, inode->sector, &inode->data);
   return inode;
 }
 
@@ -223,7 +225,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Read full sector directly into caller's buffer. */
-          block_read (fs_device, sector_idx, buffer + bytes_read);
+          cached_block_read (fs_device, sector_idx, buffer + bytes_read);
         }
       else
         {
@@ -235,7 +237,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
               if (bounce == NULL)
                 break;
             }
-          block_read (fs_device, sector_idx, bounce);
+          cached_block_read (fs_device, sector_idx, bounce);
           memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
         }
 
@@ -284,7 +286,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Write full sector directly to disk. */
-          block_write (fs_device, sector_idx, buffer + bytes_written);
+          cached_block_write (fs_device, sector_idx, buffer + bytes_written);
         }
       else
         {
@@ -300,11 +302,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
              we're writing, then we need to read in the sector
              first.  Otherwise we start with a sector of all zeros. */
           if (sector_ofs > 0 || chunk_size < sector_left)
-            block_read (fs_device, sector_idx, bounce);
+            cached_block_read (fs_device, sector_idx, bounce);
           else
             memset (bounce, 0, BLOCK_SECTOR_SIZE);
           memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
-          block_write (fs_device, sector_idx, bounce);
+          cached_block_write (fs_device, sector_idx, bounce);
         }
 
       /* Advance. */
@@ -342,4 +344,101 @@ off_t
 inode_length (const struct inode *inode)
 {
   return inode->data.length;
+}
+
+
+static
+void
+free_LRU_block (void)
+{
+  struct list_elem *e = list_prev (list_end (&LRU_list));
+  struct cache_block *cb = list_entry (e, struct cache_block, elem);
+
+  list_remove (e);
+
+  if (cb->is_dirty)
+    block_write(cb->block, cb->sector, (void *) cb->block_data);
+
+  free (cb);
+}
+
+static
+struct cache_block*
+create_cache_block (struct block *block, block_sector_t sector, bool read_from_disk)
+{
+  struct cache_block *cb;
+  cb = malloc (sizeof *cb);
+  
+  cb->is_dirty = false;
+  cb->block = block;
+  cb->sector = sector;
+  lock_init (&cb->cb_lock); 
+
+  if (read_from_disk) 
+    block_read (block, sector, (void *) cb->block_data);
+
+  if (list_size (&LRU_list) == LRU_CACHE_SIZE)
+    free_LRU_block ();
+
+  list_insert (list_begin (&LRU_list), &cb->elem);
+   
+  return cb;
+}
+
+static
+struct cache_block*
+fetch_cache_block (struct block *block, block_sector_t sector, bool read_from_disk)
+{
+  struct list_elem *e;
+
+  lock_acquire (&LRU_lock);
+  for (e = list_begin (&LRU_list); e != list_end (&LRU_list); e = list_next (e))
+    {
+      struct cache_block *cb = list_entry (e, struct cache_block, elem);
+      if (block == cb->block && sector == cb->sector)
+        {
+          list_remove (e);
+          list_insert (list_begin (&LRU_list), e);
+          
+          lock_release (&LRU_lock); 
+
+          return cb;
+        }
+    }
+
+
+  struct cache_block *cb = create_cache_block (block, sector, read_from_disk);
+
+  lock_release (&LRU_lock);
+  
+  return cb;
+}
+
+
+void
+cached_block_read (struct block *block, block_sector_t sector,
+                   void *buffer)
+{
+  struct cache_block *cb = fetch_cache_block (block, sector, true); 
+
+  lock_acquire (&cb->cb_lock);
+  memcpy (buffer, cb->block_data, BLOCK_SECTOR_SIZE);
+  lock_release (&cb->cb_lock);
+  
+  return;
+}
+
+
+void
+cached_block_write (struct block *block, block_sector_t sector,
+                   const void *buffer)
+{
+  struct cache_block *cb = fetch_cache_block (block, sector, false); 
+
+  lock_acquire (&cb->cb_lock);
+  cb->is_dirty = true;
+  memcpy (cb->block_data, buffer, BLOCK_SECTOR_SIZE);
+  lock_release (&cb->cb_lock);
+  
+  return;
 }
