@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,6 +26,16 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+//#ifdef USERPROG
+struct process_d {
+   tid_t tid;
+   struct semaphore loaded;
+   struct semaphore exited;
+   int exit_status; //default is -1
+};
+//#endif
+
 
 /* A kernel thread or user process.
 
@@ -92,37 +103,47 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    /* Shared between thread.c and synch.c and timer.c. */
+    const char* thread_exe_file_name;
+
+    /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-
-    /* Thread wake up tick. */
-    int64_t wakeup_time;
-
+    
+    struct list files;                  /* files opened by thread */
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-   /* Thread's Effective Priority. */
-   int eff_priority;
-
-   /* Thread's Waiting Lock. */
-   struct lock *waiting_lock;
-
-   /* List of this thread acquired locks. */
-   struct list acquired_locks;
-
+   struct list children;
+   struct list_elem child_elem;
+   struct process_d inner_process;
+   struct thread* parent;
+   struct list_elem process_elem;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+
+struct filemap
+{
+   int fd;
+   struct file* file_instance;
+   const char* file_name;
+   struct list_elem elem;
+};
+
+
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+struct list all_list;
+
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-
-bool thread_wakeup_time_less (struct list_elem *a_, struct list_elem *b_, void *aux UNUSED);
 
 void thread_init (void);
 void thread_start (void);
@@ -149,11 +170,29 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
-void thread_set_eff_priority(int new_eff_priority);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+struct file *get_file(int fd);
+char* get_file_name(int fd);
+int add_file(struct file *file, char *file_name);
+void remove_file(struct file *file);
+
+struct list open_execs;
+struct exec_file{
+   const char* file_name;
+   struct list_elem elem;
+};
+
+void check_open_execs(const char* file_name, struct file* new_file);
+tid_t execute_child_process(const char* filename);
+
+int wait_for_child(tid_t tid);
+
+bool first_load;
+int open_threads;
 
 #endif /* threads/thread.h */
