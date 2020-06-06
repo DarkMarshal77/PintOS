@@ -17,7 +17,9 @@ struct inode_disk
     block_sector_t start;               /* First data sector. */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    uint8_t unused[495];               /* Not used. */
+    bool is_dir;                        /* indicates whether an inode is a directory */
+    block_sector_t parent;              /* inode's parent */
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -72,7 +74,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, bool is_dir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -89,6 +91,7 @@ inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
+      disk_inode->is_dir = is_dir;
       if (free_map_allocate (sectors, &disk_inode->start))
         {
           cached_block_write (fs_device, sector, disk_inode);
@@ -431,4 +434,29 @@ cached_block_write (struct block *block, block_sector_t sector,
   lock_release (&cb->cb_lock);
   
   return;
+}
+
+/* Returns is_dir of INODE's data. */
+bool
+inode_is_dir (const struct inode *inode)
+{
+  ASSERT (inode != NULL);
+  return inode->data.is_dir;
+}
+
+bool
+inode_is_removed (const struct inode *inode)
+{
+  ASSERT (inode != NULL);
+  return inode->removed;
+}
+
+block_sector_t 
+inode_get_parent (const struct inode* inode) {
+  return inode->data.parent;
+}
+
+void 
+inode_set_parent (struct inode* inode, block_sector_t parent) {
+  inode->data.parent = parent;
 }

@@ -122,7 +122,10 @@ struct thread
    struct list_elem process_elem;
 
     /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
+   unsigned magic;                     /* Detects stack overflow. */
+
+   /*thread current working directory*/
+   struct dir *cwd;
   };
 
 
