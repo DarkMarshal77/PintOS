@@ -81,7 +81,8 @@ filesys_open (const char *name)
   bool split_success = split_directory_and_filename (name, directory, filename);
   struct dir *dir = dir_open_directory (directory);
   struct inode *inode = NULL;
-
+  if (dir == NULL || !split_success)
+    return NULL;
   if (strlen (filename) == 0)
     inode = dir_get_inode (dir);
   else

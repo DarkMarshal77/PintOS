@@ -5,6 +5,9 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "devices/shutdown.h"
+#include "filesys/inode.h"
+#include "filesys/directory.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -162,7 +165,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     check_user_str_safe(file_name);
 
-    f->eax = filesys_create (file_name, initial_size);
+    f->eax = filesys_create (file_name, initial_size, false);
   }
   else if (args[0] == SYS_REMOVE)
   {
