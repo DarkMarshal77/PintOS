@@ -107,9 +107,12 @@ syscall_handler (struct intr_frame *f UNUSED)
     else
     {
       struct file *file = get_file_safe(fd);
-      char* file_name = get_file_name_safe(fd);
-      check_open_execs(file_name, file);
-      f->eax = file_write (file, buf, size);
+      struct inode *inode = file_get_inode (file);
+      if (inode != NULL && !inode_is_dir (inode)){
+        char* file_name = get_file_name_safe(fd);
+        check_open_execs(file_name, file);
+        f->eax = file_write (file, buf, size);
+      }
     }
   }
   else if (args[0] == SYS_READ)
@@ -214,7 +217,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   else if (args[0] == SYS_MKDIR){
     check_user_safe(&args[1], 4);
     char *name = (char *) args[1];
-    f->eax = filesys_create (name, 0, true);
+    f->eax = filesys_create (name, 1000, true);
   }
   else if (args[0] == SYS_READDIR){
     check_user_safe(&args[1], 4*2);
@@ -228,7 +231,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         f->eax = false;
       else
         {
-          struct dir *dir = (struct dir*) get_file_safe (fd);
+          struct dir *dir = (struct dir*) file;
           f->eax = dir_readdir (dir, name);
         }
     }
