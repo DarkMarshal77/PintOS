@@ -27,11 +27,12 @@ off_t inode_length (const struct inode *);
 struct list LRU_list;
 struct lock LRU_lock;
 
-struct cache_block {
+struct cache_block
+{
   bool is_dirty;
 
   struct block *block;
-  block_sector_t sector; 
+  block_sector_t sector;
 
   struct list_elem elem;
   struct lock cb_lock;

@@ -14,8 +14,8 @@ void free_map_close (void);
 bool free_map_allocate (size_t, block_sector_t *, bool);
 void free_map_release (block_sector_t, bool);
 
-bool free_map_check_space(size_t);
-void lock_free_map();
-void unlock_free_map();
+bool free_map_check_space(size_t, bool);
+void lock_free_map(void);
+void unlock_free_map(void);
 
 #endif /* filesys/free-map.h */

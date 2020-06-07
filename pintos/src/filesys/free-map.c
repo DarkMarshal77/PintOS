@@ -32,10 +32,10 @@ free_map_allocate (size_t cnt, block_sector_t *sectors, bool check_lock)
 {
   ASSERT (!check_lock || lock_held_by_current_thread (&free_map_lock));
 
-  if (!free_map_check_space (cnt))
+  if (!free_map_check_space (cnt, check_lock))
     return false;
 
-  size_t i = 0;
+  int i = 0;
   size_t pos = 0;
   for (; i < cnt; i++)
   {
@@ -52,7 +52,7 @@ free_map_allocate (size_t cnt, block_sector_t *sectors, bool check_lock)
   }
 
   /* Try writing to free_map_file. */
-  if (free_map_file == NULL || !bitmap_write (free_map, free_map_file))
+  if (free_map_file != NULL && !bitmap_write (free_map, free_map_file))
   {
     for (; i >= 0; i--)
       bitmap_reset (free_map, sectors[i]);
@@ -110,9 +110,9 @@ free_map_create (void)
 
 /* Check if we have enough sectors. */
 bool
-free_map_check_space(size_t sector_count)
+free_map_check_space(size_t sector_count, bool check_lock)
 {
-  ASSERT (lock_held_by_current_thread (&free_map_lock));
+  ASSERT (!check_lock || lock_held_by_current_thread (&free_map_lock));
 
   if (bitmap_count (free_map, 0, block_size (fs_device), false) < sector_count)
     return false;
@@ -121,10 +121,10 @@ free_map_check_space(size_t sector_count)
 
 void lock_free_map()
 {
-  acquire_lock (&free_map_lock);
+  lock_acquire (&free_map_lock);
 }
 
 void unlock_free_map()
 {
-  release_lock (&free_map_lock);
+  lock_release (&free_map_lock);
 }
