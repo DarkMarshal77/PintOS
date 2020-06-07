@@ -64,6 +64,8 @@ inode_init (void)
   list_init (&open_inodes);
   list_init (&LRU_list);
   lock_init (&LRU_lock);
+  cache_hit_cnt = cache_access_cnt = 0;
+  read_cnt = write_cnt = 0;
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -332,7 +334,10 @@ free_LRU_block (void)
   lock_acquire (&cb->cb_lock);
 
   if (cb->is_dirty)
-    block_write(cb->block, cb->sector, (void *) cb->block_data);
+    {
+      block_write (cb->block, cb->sector, (void *) cb->block_data);
+      write_cnt ++;
+    }
 
   lock_release (&cb->cb_lock);
 
@@ -362,6 +367,8 @@ create_cache_block (struct block *block, block_sector_t sector)
 struct cache_block*
 fetch_cache_block (struct block *block, block_sector_t sector)
 {
+  cache_access_cnt ++;
+
   struct list_elem *e;
 
   for (e = list_begin (&LRU_list); e != list_end (&LRU_list); e = list_next (e))
@@ -372,6 +379,7 @@ fetch_cache_block (struct block *block, block_sector_t sector)
           list_remove (e);
           list_insert (list_begin (&LRU_list), e);
           
+          cache_hit_cnt ++;
           return cb;
         }
     }
@@ -399,7 +407,10 @@ cached_block_read (struct block *block, block_sector_t sector,
   lock_release (&LRU_lock);
 
   if (new_block)
-    block_read (block, sector, (void *) cb->block_data);
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
 
   memcpy (buffer, cb->block_data, BLOCK_SECTOR_SIZE);
   lock_release (&cb->cb_lock);
@@ -426,7 +437,10 @@ cached_block_read_partial (struct block *block, block_sector_t sector,
   lock_release (&LRU_lock);
 
   if (new_block)
-    block_read (block, sector, (void *) cb->block_data);
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
 
   memcpy (buffer, (void *) cb->block_data + offset, size);
   lock_release (&cb->cb_lock);
@@ -473,7 +487,10 @@ void cached_block_write_partial (struct block *block, block_sector_t sector, con
   lock_release (&LRU_lock);
 
   if (new_block)
-    block_read (block, sector, (void *) cb->block_data);
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
 
   memcpy (cb->block_data + offset, buffer, size);
 

@@ -27,6 +27,12 @@ off_t inode_length (const struct inode *);
 struct list LRU_list;
 struct lock LRU_lock;
 
+int cache_hit_cnt;
+int cache_access_cnt;
+
+int read_cnt;
+int write_cnt;
+
 struct cache_block {
   bool is_dirty;
 
