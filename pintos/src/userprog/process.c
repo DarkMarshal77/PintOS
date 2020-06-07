@@ -200,7 +200,10 @@ process_exit ()
       struct exec_file* e = list_entry(current, struct exec_file, elem);
       if (!strcmp(e->file_name, cur->thread_exe_file_name))
       {
+        file_close (e->file);
         list_remove(current);
+        free (e->file_name);
+        free (e);
         break;
       }
     }
@@ -356,9 +359,10 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
   }
 
   //protecting the executable file form being written to by kernel
-  struct exec_file* n_exec_file = malloc(sizeof(struct exec_file));
+  struct exec_file *n_exec_file = malloc(sizeof(struct exec_file));
   n_exec_file->file_name = (char*)malloc(sizeof(char)*(strlen(file_name)+1));
   strlcpy(n_exec_file->file_name, file_name, strlen(file_name)+1);
+  n_exec_file->file = file;
   list_push_back(&open_execs, &n_exec_file->elem);
 
   t->thread_exe_file_name = (char*)malloc(sizeof(char)*(strlen(file_name) + 1));
@@ -434,7 +438,6 @@ load (struct Arguments arguments, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
   return success;
 }
 

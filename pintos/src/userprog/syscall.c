@@ -106,7 +106,6 @@ syscall_handler (struct intr_frame *f UNUSED)
     {
       struct file *file = get_file_safe(fd);
       char* file_name = get_file_name_safe(fd);
-      check_open_execs(file_name, file);
       f->eax = file_write (file, buf, size);
     }
   }
@@ -213,6 +212,17 @@ syscall_handler (struct intr_frame *f UNUSED)
     check_user_safe(&args[2], 4);
     * (int *)args[1] = read_cnt;
     * (int *)args[2] = write_cnt;
+  }
+  else if (args[0] == SYS_INUMBER)
+  {
+    check_user_safe(&args[1], 4);
+    int fd = args[1];
+
+    if (fd > 1)
+    {
+      struct file *file = get_file_safe(fd);
+      f->eax = inode_get_inumber (file->inode);
+    }
   }
 
 }

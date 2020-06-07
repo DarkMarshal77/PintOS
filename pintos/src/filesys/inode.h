@@ -37,7 +37,7 @@ struct cache_block {
   bool is_dirty;
 
   struct block *block;
-  block_sector_t sector; 
+  block_sector_t sector;
 
   struct list_elem elem;
   struct lock cb_lock;
