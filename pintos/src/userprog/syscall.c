@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "filesys/inode.h"
 #include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
@@ -194,6 +195,25 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct file *file = get_file_safe(fd);
     f->eax = file_tell (file);
   }
+  else if (args[0] == SYS_CACHE_FLUSH)
+  {
+    free_all_cache();
+  }
+  else if (args[0] == SYS_CACHE_INFO)
+  {
+    check_user_safe(&args[1], 4);
+    check_user_safe(&args[2], 4);
+    * (int *)args[1] = cache_access_cnt;
+    * (int *)args[2] = cache_hit_cnt;
+  }
+  else if (args[0] == SYS_FS_INFO)
+  {
+    check_user_safe(&args[1], 4);
+    check_user_safe(&args[2], 4);
+    * (int *)args[1] = read_cnt;
+    * (int *)args[2] = write_cnt;
+  }
+
 }
 
 /*

@@ -47,6 +47,10 @@ bool readdir (int fd, char name[READDIR_MAX_LEN + 1]);
 bool isdir (int fd);
 int inumber (int fd);
 
+void cache_info (int *access_cnt, int *hit_cnt);
+void fs_info (int *read_cnt, int *write_cnt);
+void cache_flush (void);
+
 /* Homework 5, Part B. */
 void* sbrk (intptr_t increment);
 
