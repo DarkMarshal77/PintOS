@@ -23,7 +23,7 @@ struct inode_disk
   bool is_dir;                                /* indicates whether an inode is a directory */
   block_sector_t parent;                      /* inode's parent */
   unsigned magic;                             /* Magic number. */
-  uint8_t unused[427];                        /* Not used. */
+  uint8_t unused[423];                        /* Not used. */
 };
 
 /* Returns sector indexes according to SECTOR number.

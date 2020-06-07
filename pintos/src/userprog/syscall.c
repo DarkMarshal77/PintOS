@@ -228,7 +228,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     if (fd > 1)
     {
       struct file *file = get_file_safe(fd);
-      f->eax = inode_get_inumber (file->inode);
+      struct inode *inode = file_get_inode (file);
+      f->eax = inode_get_inumber (inode);
     }
   }
   else if (args[0] == SYS_CHDIR)
@@ -249,7 +250,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   {
     check_user_safe(&args[1], 4);
     char *name = (char *) args[1];
-    f->eax = filesys_create (name, 1000, true);
+    f->eax = filesys_create (name, 0, true);
   }
   else if (args[0] == SYS_READDIR)
   {
