@@ -108,7 +108,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     {
       struct file *file = get_file_safe(fd);
       struct inode *inode = file_get_inode (file);
-      if (inode != NULL && !inode_is_dir (inode)){
+      if (inode != NULL && !inode_is_dir (inode))
+      {
         char* file_name = get_file_name_safe(fd);
         check_open_execs(file_name, file);
         f->eax = file_write (file, buf, size);
@@ -201,7 +202,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct file *file = get_file_safe(fd);
     f->eax = file_tell (file);
   }
-  else if (args[0] == SYS_CHDIR){
+  else if (args[0] == SYS_CHDIR)
+  {
     check_user_safe(&args[1], 4);
     char *name = (char *) args[1];
     struct dir *dir = dir_open_directory (name);
@@ -214,12 +216,14 @@ syscall_handler (struct intr_frame *f UNUSED)
     else
       f->eax = false;
   }
-  else if (args[0] == SYS_MKDIR){
+  else if (args[0] == SYS_MKDIR)
+  {
     check_user_safe(&args[1], 4);
     char *name = (char *) args[1];
     f->eax = filesys_create (name, 1000, true);
   }
-  else if (args[0] == SYS_READDIR){
+  else if (args[0] == SYS_READDIR)
+  {
     check_user_safe(&args[1], 4*2);
     int fd = args[1];
     char *name = (char *) args[2];
@@ -230,27 +234,29 @@ syscall_handler (struct intr_frame *f UNUSED)
       if (inode == NULL || !inode_is_dir (inode))
         f->eax = false;
       else
-        {
-          struct dir *dir = (struct dir*) file;
-          f->eax = dir_readdir (dir, name);
-        }
+      {
+        struct dir *dir = (struct dir*) file;
+        f->eax = dir_readdir (dir, name);
+      }
     }
     else
       f->eax = -1;
   }
-  else if (args[0] == SYS_ISDIR){
+  else if (args[0] == SYS_ISDIR)
+  {
     check_user_safe(&args[1], 4);
     int fd = args[1];
     struct file *file = get_file_safe(fd);
     if (file)
     {
-        struct inode *inode = file_get_inode (file);
-        f->eax = inode_is_dir (inode);
+      struct inode *inode = file_get_inode (file);
+      f->eax = inode_is_dir (inode);
     }
     else
       f->eax = -1;
   }
-  else if (args[0] == SYS_INUMBER){
+  else if (args[0] == SYS_INUMBER)
+  {
     check_user_safe(&args[1], 4);
     int fd = args[1];
     struct file *file = get_file_safe(fd);
@@ -329,7 +335,8 @@ put_user_byte (uint8_t *udst, uint8_t byte)
 
 
 // Gets fd file or fails
-static struct file* get_file_safe(int fd) {
+static struct file* get_file_safe(int fd) 
+{
   struct file *ret = get_file(fd);
 
   if (ret == NULL)
@@ -338,7 +345,8 @@ static struct file* get_file_safe(int fd) {
 }
 
 
-static char* get_file_name_safe(int fd){
+static char* get_file_name_safe(int fd)
+{
   char* ret = get_file_name(fd);
 
   if (ret == NULL)

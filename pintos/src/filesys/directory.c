@@ -38,18 +38,18 @@ dir_open (struct inode *inode)
 {
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
-    {
-      dir->inode = inode;
-      dir->pos = 0;
-      lock_init (&dir->dir_lock);
-      return dir;
-    }
+  {
+    dir->inode = inode;
+    dir->pos = 0;
+    lock_init (&dir->dir_lock);
+    return dir;
+  }
   else
-    {
-      inode_close (inode);
-      free (dir);
-      return NULL;
-    }
+  {
+    inode_close (inode);
+    free (dir);
+    return NULL;
+  }
 }
 
 /* Opens the root directory and returns a directory for it.
@@ -73,10 +73,10 @@ void
 dir_close (struct dir *dir)
 {
   if (dir != NULL)
-    {
-      inode_close (dir->inode);
-      free (dir);
-    }
+  {
+    inode_close (dir->inode);
+    free (dir);
+  }
 }
 
 /* Returns the inode encapsulated by DIR. */
@@ -104,13 +104,13 @@ lookup (const struct dir *dir, const char *name,
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e)
     if (e.in_use && !strcmp (name, e.name))
-      {
-        if (ep != NULL)
-          *ep = e;
-        if (ofsp != NULL)
-          *ofsp = ofs;
-        return true;
-      }
+    {
+      if (ep != NULL)
+        *ep = e;
+      if (ofsp != NULL)
+        *ofsp = ofs;
+      return true;
+    }
   return false;
 }
 

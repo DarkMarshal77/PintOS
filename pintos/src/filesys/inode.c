@@ -452,11 +452,13 @@ inode_is_removed (const struct inode *inode)
 }
 
 block_sector_t 
-inode_get_parent (const struct inode* inode) {
+inode_get_parent (const struct inode* inode)
+{
   return inode->data.parent;
 }
 
 void 
-inode_set_parent (struct inode* inode, block_sector_t parent) {
+inode_set_parent (struct inode* inode, block_sector_t parent)
+{
   inode->data.parent = parent;
 }

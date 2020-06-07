@@ -73,7 +73,7 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
 struct file *
 filesys_open (const char *name)
 {
-    char directory[strlen (name) + 1];
+  char directory[strlen (name) + 1];
   char filename[NAME_MAX + 1];
   directory[0] = '\0';
   filename[0] = '\0';
@@ -86,10 +86,10 @@ filesys_open (const char *name)
   if (strlen (filename) == 0)
     inode = dir_get_inode (dir);
   else
-    {
-      dir_lookup (dir, filename, &inode);
-      dir_close (dir);
-    }
+  {
+    dir_lookup (dir, filename, &inode);
+    dir_close (dir);
+  }
 
   if (inode == NULL || inode_is_removed (inode))
     return NULL;
