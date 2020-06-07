@@ -105,7 +105,6 @@ syscall_handler (struct intr_frame *f UNUSED)
     {
       struct file *file = get_file_safe(fd);
       char* file_name = get_file_name_safe(fd);
-      check_open_execs(file_name, file);
       f->eax = file_write (file, buf, size);
     }
   }

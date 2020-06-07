@@ -695,9 +695,6 @@ void
 cached_block_read (struct block *block, block_sector_t sector,
                    void *buffer)
 {
-  block_read (block, sector, buffer);
-  return;
-
   struct cache_block *cb = fetch_cache_block (block, sector, true);
 
   lock_acquire (&cb->cb_lock);
@@ -712,9 +709,6 @@ void
 cached_block_write (struct block *block, block_sector_t sector,
                    const void *buffer)
 {
-  block_write(block, sector, buffer);
-  return;
-
   struct cache_block *cb = fetch_cache_block (block, sector, false);
 
   lock_acquire (&cb->cb_lock);
