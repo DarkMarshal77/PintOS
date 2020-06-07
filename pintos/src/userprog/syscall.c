@@ -6,6 +6,9 @@
 #include "threads/vaddr.h"
 #include "filesys/inode.h"
 #include "devices/shutdown.h"
+#include "filesys/inode.h"
+#include "filesys/directory.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -105,8 +108,12 @@ syscall_handler (struct intr_frame *f UNUSED)
     else
     {
       struct file *file = get_file_safe(fd);
-      char* file_name = get_file_name_safe(fd);
-      f->eax = file_write (file, buf, size);
+      struct inode *inode = file_get_inode (file);
+      if (inode != NULL && !inode_is_dir (inode))
+      {
+        char* file_name = get_file_name_safe(fd);
+        f->eax = file_write (file, buf, size);
+      }
     }
   }
   else if (args[0] == SYS_READ)
@@ -162,7 +169,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     check_user_str_safe(file_name);
 
-    f->eax = filesys_create (file_name, initial_size);
+    f->eax = filesys_create (file_name, initial_size, false);
   }
   else if (args[0] == SYS_REMOVE)
   {
@@ -221,10 +228,63 @@ syscall_handler (struct intr_frame *f UNUSED)
     if (fd > 1)
     {
       struct file *file = get_file_safe(fd);
-      f->eax = inode_get_inumber (file->inode);
+      struct inode *inode = file_get_inode (file);
+      f->eax = inode_get_inumber (inode);
     }
   }
-
+  else if (args[0] == SYS_CHDIR)
+  {
+    check_user_safe(&args[1], 4);
+    char *name = (char *) args[1];
+    struct dir *dir = dir_open_directory (name);
+    if (dir != NULL)
+    {
+      dir_close (thread_current ()->cwd);
+      thread_current ()->cwd = dir;
+      f->eax = true;
+    }
+    else
+      f->eax = false;
+  }
+  else if (args[0] == SYS_MKDIR)
+  {
+    check_user_safe(&args[1], 4);
+    char *name = (char *) args[1];
+    f->eax = filesys_create (name, 0, true);
+  }
+  else if (args[0] == SYS_READDIR)
+  {
+    check_user_safe(&args[1], 4*2);
+    int fd = args[1];
+    char *name = (char *) args[2];
+    struct file *file = get_file_safe(fd);
+    if (file)
+    {
+      struct inode *inode = file_get_inode (file);
+      if (inode == NULL || !inode_is_dir (inode))
+        f->eax = false;
+      else
+      {
+        struct dir *dir = (struct dir*) file;
+        f->eax = dir_readdir (dir, name);
+      }
+    }
+    else
+      f->eax = -1;
+  }
+  else if (args[0] == SYS_ISDIR)
+  {
+    check_user_safe(&args[1], 4);
+    int fd = args[1];
+    struct file *file = get_file_safe(fd);
+    if (file)
+    {
+      struct inode *inode = file_get_inode (file);
+      f->eax = inode_is_dir (inode);
+    }
+    else
+      f->eax = -1;
+  }
 }
 
 /*
@@ -292,7 +352,8 @@ put_user_byte (uint8_t *udst, uint8_t byte)
 
 
 // Gets fd file or fails
-static struct file* get_file_safe(int fd) {
+static struct file* get_file_safe(int fd)
+{
   struct file *ret = get_file(fd);
 
   if (ret == NULL)
@@ -301,7 +362,8 @@ static struct file* get_file_safe(int fd) {
 }
 
 
-static char* get_file_name_safe(int fd){
+static char* get_file_name_safe(int fd)
+{
   char* ret = get_file_name(fd);
 
   if (ret == NULL)

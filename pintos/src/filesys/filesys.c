@@ -44,14 +44,21 @@ filesys_done (void)
    Fails if a file named NAME already exists,
    or if internal memory allocation fails. */
 bool
-filesys_create (const char *name, off_t initial_size)
+filesys_create (const char *name, off_t initial_size, bool is_dir)
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root ();
-  bool success = (dir != NULL
+
+  char directory[strlen (name) + 1];
+  char filename[NAME_MAX + 1];
+  directory[0] = '\0';
+  filename[0] = '\0';
+  bool split_success = split_directory_and_filename (name, directory, filename);
+  struct dir *dir = dir_open_directory (directory);
+  bool success = (split_success
+                  && dir != NULL
                   && free_map_allocate (1, &inode_sector, false)
-                  && inode_create (inode_sector, initial_size)
-                  && dir_add (dir, name, inode_sector));
+                  && inode_create (inode_sector, initial_size, is_dir)
+                  && dir_add (dir, filename, inode_sector, is_dir));
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, false);
   dir_close (dir);
@@ -67,14 +74,31 @@ filesys_create (const char *name, off_t initial_size)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  char directory[strlen (name) + 1];
+  char filename[NAME_MAX + 1];
+  directory[0] = '\0';
+  filename[0] = '\0';
+
+  bool split_success = split_directory_and_filename (name, directory, filename);
+  struct dir *dir = dir_open_directory (directory);
   struct inode *inode = NULL;
+  if (dir == NULL || !split_success)
+    return NULL;
+  if (strlen (filename) == 0)
+    inode = dir_get_inode (dir);
+  else
+  {
+    dir_lookup (dir, filename, &inode);
+    dir_close (dir);
+  }
 
-  if (dir != NULL)
-    dir_lookup (dir, name, &inode);
-  dir_close (dir);
+  if (inode == NULL || inode_is_removed (inode))
+    return NULL;
 
-  return file_open (inode);
+  if (inode_is_dir(inode))
+    return dir_open(inode);
+  else
+    return file_open (inode);
 }
 
 /* Deletes the file named NAME.
@@ -84,8 +108,15 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name)
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  char directory[strlen (name) + 1];
+  char filename[NAME_MAX + 1];
+  directory[0] = '\0';
+  filename[0] = '\0';
+
+  bool split_success = split_directory_and_filename (name, directory, filename);
+  struct dir *dir = dir_open_directory (directory);
+
+  bool success = split_success && (dir != NULL) && dir_remove (dir, filename);
   dir_close (dir);
 
   return success;
