@@ -14,6 +14,9 @@
    Good enough for devices up to 2 TB. */
 typedef uint32_t block_sector_t;
 
+/* Number of sector pointers in a block */
+#define ADDRESS_COUNT_PER_BLOCK (BLOCK_SECTOR_SIZE/sizeof(block_sector_t))
+
 /* Format specifier for printf(), e.g.:
    printf ("sector=%"PRDSNu"\n", sector); */
 #define PRDSNu PRIu32

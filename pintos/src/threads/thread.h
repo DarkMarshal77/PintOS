@@ -107,9 +107,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-    
+
     struct list files;                  /* files opened by thread */
-    
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -185,8 +185,10 @@ int add_file(struct file *file, char *file_name);
 void remove_file(struct file *file);
 
 struct list open_execs;
-struct exec_file{
+struct exec_file
+{
    const char* file_name;
+   struct file *file;
    struct list_elem elem;
 };
 

@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "filesys/inode.h"
 #include "devices/shutdown.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
@@ -111,7 +112,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       if (inode != NULL && !inode_is_dir (inode))
       {
         char* file_name = get_file_name_safe(fd);
-        check_open_execs(file_name, file);
         f->eax = file_write (file, buf, size);
       }
     }
@@ -202,6 +202,35 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct file *file = get_file_safe(fd);
     f->eax = file_tell (file);
   }
+  else if (args[0] == SYS_CACHE_FLUSH)
+  {
+    free_all_cache();
+  }
+  else if (args[0] == SYS_CACHE_INFO)
+  {
+    check_user_safe(&args[1], 4);
+    check_user_safe(&args[2], 4);
+    * (int *)args[1] = cache_access_cnt;
+    * (int *)args[2] = cache_hit_cnt;
+  }
+  else if (args[0] == SYS_FS_INFO)
+  {
+    check_user_safe(&args[1], 4);
+    check_user_safe(&args[2], 4);
+    * (int *)args[1] = read_cnt;
+    * (int *)args[2] = write_cnt;
+  }
+  else if (args[0] == SYS_INUMBER)
+  {
+    check_user_safe(&args[1], 4);
+    int fd = args[1];
+
+    if (fd > 1)
+    {
+      struct file *file = get_file_safe(fd);
+      f->eax = inode_get_inumber (file->inode);
+    }
+  }
   else if (args[0] == SYS_CHDIR)
   {
     check_user_safe(&args[1], 4);
@@ -254,19 +283,6 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     else
       f->eax = -1;
-  }
-  else if (args[0] == SYS_INUMBER)
-  {
-    check_user_safe(&args[1], 4);
-    int fd = args[1];
-    struct file *file = get_file_safe(fd);
-    if (file)
-    {
-      struct inode *inode = file_get_inode (file);
-      f->eax = (int) inode_get_inumber (inode);
-    }
-  else
-    f->eax = -1;
   }
 }
 
@@ -335,7 +351,7 @@ put_user_byte (uint8_t *udst, uint8_t byte)
 
 
 // Gets fd file or fails
-static struct file* get_file_safe(int fd) 
+static struct file* get_file_safe(int fd)
 {
   struct file *ret = get_file(fd);
 
