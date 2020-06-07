@@ -64,6 +64,8 @@ inode_init (void)
   list_init (&open_inodes);
   list_init (&LRU_list);
   lock_init (&LRU_lock);
+  cache_hit_cnt = cache_access_cnt = 0;
+  read_cnt = write_cnt = 0;
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -228,11 +230,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         }
       else
         {
-          struct cache_block *cb = fetch_cache_block (fs_device, sector_idx, true);
-
-          lock_acquire (&cb->cb_lock);
-          memcpy (buffer + bytes_read, (void *) cb->block_data + sector_ofs, chunk_size);
-          lock_release (&cb->cb_lock);
+          cached_block_read_partial (fs_device, sector_idx, buffer + bytes_read,
+                                     sector_ofs, chunk_size);
         }
 
       /* Advance. */
@@ -282,23 +281,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
         }
       else
         {
-          struct cache_block *cb;
-
-          /* If the sector contains data before or after the chunk
-             we're writing, then we need to read in the sector
-             first.  Otherwise we start with a sector of all zeros. */
-          if (sector_ofs > 0 || chunk_size < sector_left)
-            cb = fetch_cache_block (fs_device, sector_idx, true);
-          else
-            {
-              cb = fetch_cache_block (fs_device, sector_idx, false);
-              memset (cb->block_data, 0, BLOCK_SECTOR_SIZE);
-            }
-
-          lock_acquire (&cb->cb_lock);
-          memcpy (cb->block_data + sector_ofs, buffer + bytes_written, chunk_size);
-          cb->is_dirty = true;
-          lock_release (&cb->cb_lock);
+          cached_block_write_partial (fs_device, sector_idx, buffer + bytes_written,
+                                      sector_ofs, chunk_size);
         }
 
       /* Advance. */
@@ -347,15 +331,22 @@ free_LRU_block (void)
 
   list_remove (e);
 
+  lock_acquire (&cb->cb_lock);
+
   if (cb->is_dirty)
-    block_write(cb->block, cb->sector, (void *) cb->block_data);
+    {
+      block_write (cb->block, cb->sector, (void *) cb->block_data);
+      write_cnt ++;
+    }
+
+  lock_release (&cb->cb_lock);
 
   free (cb);
 }
 
 static
 struct cache_block*
-create_cache_block (struct block *block, block_sector_t sector, bool read_from_disk)
+create_cache_block (struct block *block, block_sector_t sector)
 {
   struct cache_block *cb;
   cb = malloc (sizeof *cb);
@@ -364,9 +355,6 @@ create_cache_block (struct block *block, block_sector_t sector, bool read_from_d
   cb->block = block;
   cb->sector = sector;
   lock_init (&cb->cb_lock); 
-
-  if (read_from_disk) 
-    block_read (block, sector, (void *) cb->block_data);
 
   if (list_size (&LRU_list) == LRU_CACHE_SIZE)
     free_LRU_block ();
@@ -377,11 +365,12 @@ create_cache_block (struct block *block, block_sector_t sector, bool read_from_d
 }
 
 struct cache_block*
-fetch_cache_block (struct block *block, block_sector_t sector, bool read_from_disk)
+fetch_cache_block (struct block *block, block_sector_t sector)
 {
+  cache_access_cnt ++;
+
   struct list_elem *e;
 
-  lock_acquire (&LRU_lock);
   for (e = list_begin (&LRU_list); e != list_end (&LRU_list); e = list_next (e))
     {
       struct cache_block *cb = list_entry (e, struct cache_block, elem);
@@ -390,18 +379,13 @@ fetch_cache_block (struct block *block, block_sector_t sector, bool read_from_di
           list_remove (e);
           list_insert (list_begin (&LRU_list), e);
           
-          lock_release (&LRU_lock); 
-
+          cache_hit_cnt ++;
           return cb;
         }
     }
 
 
-  struct cache_block *cb = create_cache_block (block, sector, read_from_disk);
-
-  lock_release (&LRU_lock);
-  
-  return cb;
+  return NULL;
 }
 
 
@@ -409,9 +393,25 @@ void
 cached_block_read (struct block *block, block_sector_t sector,
                    void *buffer)
 {
-  struct cache_block *cb = fetch_cache_block (block, sector, true); 
+  lock_acquire (&LRU_lock);
+  struct cache_block *cb = fetch_cache_block (block, sector); 
+
+  bool new_block = false;
+  if (cb == NULL) 
+    {
+      cb = create_cache_block (block, sector);
+      new_block = true;
+    }
 
   lock_acquire (&cb->cb_lock);
+  lock_release (&LRU_lock);
+
+  if (new_block)
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
+
   memcpy (buffer, cb->block_data, BLOCK_SECTOR_SIZE);
   lock_release (&cb->cb_lock);
   
@@ -420,15 +420,90 @@ cached_block_read (struct block *block, block_sector_t sector,
 
 
 void
-cached_block_write (struct block *block, block_sector_t sector,
-                   const void *buffer)
+cached_block_read_partial (struct block *block, block_sector_t sector,
+                                void *buffer, size_t offset, size_t size)
 {
-  struct cache_block *cb = fetch_cache_block (block, sector, false); 
+  lock_acquire (&LRU_lock);
+  struct cache_block *cb = fetch_cache_block (block, sector);
+  
+  bool new_block = false;
+  if (cb == NULL) 
+    {
+      cb = create_cache_block (block, sector);
+      new_block = true;
+    }
 
   lock_acquire (&cb->cb_lock);
+  lock_release (&LRU_lock);
+
+  if (new_block)
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
+
+  memcpy (buffer, (void *) cb->block_data + offset, size);
+  lock_release (&cb->cb_lock);
+}
+
+
+void
+cached_block_write (struct block *block, block_sector_t sector,
+                    const void *buffer)
+{
+  lock_acquire (&LRU_lock);
+  struct cache_block *cb = fetch_cache_block (block, sector); 
+
+  if (cb == NULL) 
+    cb = create_cache_block (block, sector);
+
+  lock_acquire (&cb->cb_lock);
+  lock_release (&LRU_lock);
+
   cb->is_dirty = true;
   memcpy (cb->block_data, buffer, BLOCK_SECTOR_SIZE);
   lock_release (&cb->cb_lock);
   
   return;
+}
+
+void cached_block_write_partial (struct block *block, block_sector_t sector, const void *buffer,
+                                 size_t offset, size_t size)
+{
+  struct cache_block *cb;
+
+  lock_acquire (&LRU_lock);
+
+  cb = fetch_cache_block (block, sector);
+
+  bool new_block = false;
+  if (cb == NULL)
+    { 
+      new_block = true;
+      cb = create_cache_block(block, sector);
+    }
+
+  lock_acquire (&cb->cb_lock);
+  lock_release (&LRU_lock);
+
+  if (new_block)
+    {
+      block_read (block, sector, (void *) cb->block_data);
+      read_cnt ++;
+    }
+
+  memcpy (cb->block_data + offset, buffer, size);
+
+  cb->is_dirty = true;
+  lock_release (&cb->cb_lock);
+}
+
+
+void
+free_all_cache (void)
+{
+  lock_acquire (&LRU_lock);
+  while (list_size (&LRU_list)) 
+    free_LRU_block();
+  lock_release (&LRU_lock);
 }

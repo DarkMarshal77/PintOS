@@ -27,6 +27,12 @@ off_t inode_length (const struct inode *);
 struct list LRU_list;
 struct lock LRU_lock;
 
+int cache_hit_cnt;
+int cache_access_cnt;
+
+int read_cnt;
+int write_cnt;
+
 struct cache_block {
   bool is_dirty;
 
@@ -39,11 +45,15 @@ struct cache_block {
   char block_data[BLOCK_SECTOR_SIZE];
 };
 
-struct cache_block* fetch_cache_block (struct block *block, block_sector_t sector,
-                                       bool read_from_disk);
+struct cache_block* fetch_cache_block (struct block *block, block_sector_t sector);
 
 void cached_block_read (struct block *block, block_sector_t sector, void *buffer);
 void cached_block_write (struct block *block, block_sector_t sector, const void *buffer);
+
+void cached_block_read_partial (struct block *block, block_sector_t sector, void *buffer,
+                                size_t offset, size_t size);
+void cached_block_write_partial (struct block *block, block_sector_t sector, const void *buffer,
+                                 size_t offset, size_t size);
 
 void free_all_cache (void);
 
