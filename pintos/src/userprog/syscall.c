@@ -213,6 +213,17 @@ syscall_handler (struct intr_frame *f UNUSED)
     * (int *)args[1] = read_cnt;
     * (int *)args[2] = write_cnt;
   }
+  else if (args[0] == SYS_INUMBER)
+  {
+    check_user_safe(&args[1], 4);
+    int fd = args[1];
+
+    if (fd > 1)
+    {
+      struct file *file = get_file_safe(fd);
+      f->eax = inode_get_inumber (file->inode);
+    }
+  }
 
 }
 
