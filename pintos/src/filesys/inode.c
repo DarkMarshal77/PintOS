@@ -368,7 +368,6 @@ inode_open (block_sector_t sector)
   inode->removed = false;
   cached_block_read (fs_device, inode->sector, &inode->data);
   lock_init (&inode->inode_lock);
-  // printf("%s: sector:%08x, len:%u, magic:%u\n", __FUNCTION__, inode->sector, inode->data.length, inode->data.magic);
   return inode;
 }
 
@@ -461,7 +460,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
 
-  // printf("\n%s Called. size:%u, off:%u\n", __FUNCTION__, size, offset);
   inode_deny_write (inode);
 
   while (size > 0)
@@ -469,8 +467,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-
-      // printf("\n%s: sector_idx:%08x, len:%u\n", __FUNCTION__, sector_idx, inode->data.length);
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
       off_t inode_left = inode_length (inode) - offset;
@@ -515,7 +511,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
 
-  // printf("\n%s Called. sector:%08x, size:%u, off:%u\n", __FUNCTION__, inode->sector, size, offset);
   lock_acquire (&inode->inode_lock);
 
   if (inode->deny_write_cnt)
